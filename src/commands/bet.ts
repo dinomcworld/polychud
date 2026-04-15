@@ -1,0 +1,116 @@
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  SlashCommandBuilder,
+} from "discord.js";
+import type { Command } from "./types.js";
+import { getUserActiveBets } from "../services/betting.js";
+import { ensureUser } from "../services/users.js";
+
+export const betCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName("bet")
+    .setDescription("Manage your bets")
+    .addSubcommand((sub) =>
+      sub.setName("list").setDescription("List your active bets")
+    ),
+
+  async execute(interaction) {
+    const sub = interaction.options.getSubcommand();
+
+    if (sub === "list") {
+      await handleBetList(interaction);
+    }
+  },
+};
+
+async function handleBetList(
+  interaction: import("discord.js").ChatInputCommandInteraction
+) {
+  await interaction.deferReply({ ephemeral: true });
+
+  await ensureUser(interaction.user.id, interaction.guildId!);
+  const activeBets = await getUserActiveBets(
+    interaction.user.id,
+    interaction.guildId!
+  );
+
+  if (activeBets.length === 0) {
+    await interaction.editReply({
+      content:
+        "You have no active bets. Use `/market search` to find markets and place bets!",
+    });
+    return;
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle("Your Active Bets")
+    .setColor(0x5865f2)
+    .setTimestamp();
+
+  const fields = activeBets.slice(0, 5).map((bet, i) => {
+    const question = bet.market
+      ? bet.market.question.length > 50
+        ? bet.market.question.slice(0, 47) + "..."
+        : bet.market.question
+      : `Market #${bet.marketId}`;
+
+    const entryPrice = parseFloat(bet.oddsAtBet);
+    const entryPct = (entryPrice * 100).toFixed(1);
+
+    const currentPrice = bet.market
+      ? parseFloat(
+          bet.outcome === "yes"
+            ? bet.market.currentYesPrice || "0.5"
+            : bet.market.currentNoPrice || "0.5"
+        )
+      : entryPrice;
+
+    const currentPct = (currentPrice * 100).toFixed(1);
+    const unrealizedPnL =
+      Math.floor(bet.amount * (currentPrice / entryPrice)) - bet.amount;
+    const pnlStr =
+      unrealizedPnL >= 0 ? `+${unrealizedPnL}` : `${unrealizedPnL}`;
+
+    return {
+      name: `#${bet.id} — ${bet.outcome.toUpperCase()} on ${question}`,
+      value: [
+        `Stake: **${bet.amount.toLocaleString()}** pts`,
+        `Entry: ${entryPct}% \u2192 Now: ${currentPct}%`,
+        `Potential payout: **${bet.potentialPayout.toLocaleString()}** pts`,
+        `P&L: **${pnlStr}** pts`,
+      ].join("\n"),
+    };
+  });
+
+  embed.addFields(fields);
+
+  if (activeBets.length > 5) {
+    embed.setFooter({
+      text: `Showing 5 of ${activeBets.length} active bets`,
+    });
+  }
+
+  // Add close buttons (coming soon placeholder for Phase 2)
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+  const closeButtons = activeBets.slice(0, 5).map((bet) =>
+    new ButtonBuilder()
+      .setCustomId(`close_bet_${bet.id}`)
+      .setLabel(`Close #${bet.id}`)
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  // Discord allows max 5 buttons per row
+  if (closeButtons.length > 0) {
+    rows.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(closeButtons)
+    );
+  }
+
+  await interaction.editReply({
+    embeds: [embed],
+    components: rows,
+  });
+}
