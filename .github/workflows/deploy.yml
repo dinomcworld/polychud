@@ -76,7 +76,7 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ vars.POSTGRES_DB || 'polymarket_bot' }}
           POSTGRES_USER: ${{ vars.POSTGRES_USER || 'bot' }}
-          DATABASE_URL: ${{ vars.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           NODE_ENV: production
           POLYMARKET_GAMMA_URL: ${{ vars.POLYMARKET_GAMMA_URL || 'https://gamma-api.polymarket.com' }}
           POLYMARKET_CLOB_URL: ${{ vars.POLYMARKET_CLOB_URL || 'https://clob.polymarket.com' }}
