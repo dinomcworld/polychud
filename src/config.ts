@@ -13,13 +13,8 @@ const envSchema = z.object({
   POLYMARKET_CLOB_URL: z.url().default("https://clob.polymarket.com"),
 
   // Polling
-  POLL_BASE_INTERVAL_MS: z.coerce.number().int().positive().default(21_600_000),
-  POLL_MIN_INTERVAL_MS: z.coerce.number().int().positive().default(3_600_000),
-  POLL_MAX_INTERVAL_MS: z.coerce.number().int().positive().default(86_400_000),
+  POLL_CYCLE_MS: z.coerce.number().int().positive().default(3_600_000), // 60min
   RESOLUTION_CHECK_CRON: z.string().default("*/30 * * * *"),
-  METADATA_REFRESH_CRON: z.string().default("0 */6 * * *"),
-  MOMENTUM_THRESHOLD_LOW: z.coerce.number().default(0.02),
-  MOMENTUM_THRESHOLD_HIGH: z.coerce.number().default(0.10),
   ON_DEMAND_CACHE_TTL_MS: z.coerce.number().int().positive().default(60_000),
   CLOSE_BET_PRICE_MAX_AGE_MS: z.coerce.number().int().positive().default(30_000),
 

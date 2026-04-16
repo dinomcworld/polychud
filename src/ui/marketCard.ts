@@ -8,7 +8,7 @@ import {
 } from "discord.js";
 
 interface MarketCardData {
-  dbId: number;
+  conditionId: string;
   question: string;
   slug: string | null;
   eventSlug: string | null;
@@ -75,29 +75,34 @@ export function buildMarketEmbed(market: MarketCardData) {
 }
 
 export function buildMarketButtons(
-  dbId: number,
+  conditionId: string,
   slug: string | null,
   isActive: boolean,
-  eventSlug?: string | null
+  eventSlug?: string | null,
+  polyEventId?: string | null
 ) {
   const row = new ActionRowBuilder<ButtonBuilder>();
 
   if (isActive) {
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId(`bet_yes_${dbId}`)
+        .setCustomId(`bet_yes_${conditionId}`)
         .setLabel("Bet YES")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId(`bet_no_${dbId}`)
+        .setCustomId(`bet_no_${conditionId}`)
         .setLabel("Bet NO")
         .setStyle(ButtonStyle.Danger)
     );
   }
 
+  // Embed polyEventId in refresh button so event context survives refresh
+  const refreshId = polyEventId
+    ? `refresh_${conditionId}_evt${polyEventId}`
+    : `refresh_${conditionId}`;
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(`refresh_${dbId}`)
+      .setCustomId(refreshId)
       .setLabel("Refresh")
       .setStyle(ButtonStyle.Secondary)
   );

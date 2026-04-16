@@ -108,6 +108,12 @@ async function fetchWithRetry(
     }
 
     if (!response.ok) {
+      const resBody = await response.text().catch(() => "(unreadable)");
+      const method = options.method ?? "GET";
+      const reqBody = options.body ? ` body=${options.body}` : "";
+      logger.debug(
+        `API ${response.status} ${method} ${url}${reqBody} -> ${resBody}`
+      );
       throw new Error(`API error ${response.status}: ${response.statusText}`);
     }
 
@@ -248,6 +254,26 @@ export async function getMarketById(
   return market;
 }
 
+export async function getEventById(
+  eventId: string
+): Promise<GammaEvent | null> {
+  const cached = eventCache.get(`event:${eventId}`);
+  if (cached) return cached;
+
+  const url = `${config.POLYMARKET_GAMMA_URL}/events?id=${encodeURIComponent(eventId)}`;
+  const response = await fetchWithRetry(url);
+  const raw = (await response.json()) as RawApiObject[];
+  if (raw.length === 0) return null;
+
+  const event = parseEvent(raw[0]!);
+  eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
+  for (const m of event.markets) {
+    m.events = [event];
+    marketCache.set(`market:${m.conditionId}`, m, MARKET_CACHE_TTL);
+  }
+  return event;
+}
+
 export async function getMarketByConditionId(
   conditionId: string
 ): Promise<GammaMarket | null> {
@@ -293,15 +319,29 @@ export async function getBatchPrices(
 
   if (uncached.length > 0) {
     const url = `${config.POLYMARKET_CLOB_URL}/prices`;
+    const payload = uncached.map((id) => ({ token_id: id }));
     const response = await fetchWithRetry(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token_ids: uncached }),
+      body: JSON.stringify(payload),
     });
-    const data = (await response.json()) as Record<string, number>;
+    const data = (await response.json()) as Record<string, { BUY?: string; SELL?: string }>;
 
-    for (const [tokenId, price] of Object.entries(data)) {
-      const p = typeof price === "string" ? parseFloat(price) : price;
+    for (const [tokenId, sides] of Object.entries(data)) {
+      const buy = sides.BUY ? parseFloat(sides.BUY) : null;
+      const sell = sides.SELL ? parseFloat(sides.SELL) : null;
+
+      let p: number;
+      if (buy !== null && sell !== null) {
+        p = (buy + sell) / 2;
+      } else if (buy !== null) {
+        p = buy;
+      } else if (sell !== null) {
+        p = sell;
+      } else {
+        continue;
+      }
+
       priceCache.set(`price:${tokenId}`, p, PRICE_CACHE_TTL);
       result.set(tokenId, p);
     }

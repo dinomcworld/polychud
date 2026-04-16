@@ -2,13 +2,8 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { bets, markets } from "../db/schema.js";
 import { getBatchPrices } from "../services/polymarket.js";
+import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
-
-// Simple intervals based on time-to-close
-const INTERVAL_FAR = 4 * 60 * 60 * 1000; // > 7 days: every 4h
-const INTERVAL_MEDIUM = 2 * 60 * 60 * 1000; // 1-7 days: every 2h
-const INTERVAL_CLOSE = 30 * 60 * 1000; // < 24h: every 30m
-const INTERVAL_PAST = 15 * 60 * 1000; // past end date: every 15m
 
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
 let stopped = false;
@@ -31,19 +26,20 @@ export function stopPoller() {
 async function schedulePollCycle() {
   if (stopped) return;
 
+  let nextDelay = config.POLL_CYCLE_MS;
+
   try {
-    await runPollCycle();
+    nextDelay = await runPollCycle();
   } catch (err) {
     logger.error("Poll cycle failed:", err);
   }
 
   if (stopped) return;
 
-  // Next cycle in 5 minutes — each cycle picks up whatever is due
-  pollTimer = setTimeout(() => void schedulePollCycle(), 5 * 60 * 1000);
+  pollTimer = setTimeout(() => void schedulePollCycle(), nextDelay);
 }
 
-async function runPollCycle() {
+async function runPollCycle(): Promise<number> {
   // Find all markets with pending bets
   const marketsWithBets = await db
     .selectDistinct({ marketId: bets.marketId })
@@ -52,12 +48,11 @@ async function runPollCycle() {
 
   if (marketsWithBets.length === 0) {
     logger.debug("No markets with pending bets to poll");
-    return;
+    return config.POLL_CYCLE_MS;
   }
 
   const marketIds = marketsWithBets.map((r) => r.marketId);
 
-  // Fetch those markets
   const trackedMarkets = await db.query.markets.findMany({
     where: sql`${markets.id} IN (${sql.join(
       marketIds.map((id) => sql`${id}`),
@@ -65,77 +60,49 @@ async function runPollCycle() {
     )})`,
   });
 
-  const now = Date.now();
-  const due: typeof trackedMarkets = [];
+  if (trackedMarkets.length === 0) return config.POLL_CYCLE_MS;
+
+  // Spread polls evenly: cycle_time / market_count
+  const interval = Math.floor(config.POLL_CYCLE_MS / trackedMarkets.length);
+
+  logger.info(
+    `Polling ${trackedMarkets.length} markets, one every ${Math.round(interval / 1000)}s (${Math.round(config.POLL_CYCLE_MS / 60000)}min cycle)`
+  );
 
   for (const market of trackedMarkets) {
-    const interval = getInterval(market.endDate);
-    const lastPolled = market.lastPolledAt?.getTime() ?? 0;
+    if (stopped) break;
 
-    if (now - lastPolled >= interval) {
-      due.push(market);
-    }
-  }
+    if (!market.yesTokenId) continue;
 
-  if (due.length === 0) {
-    logger.debug(
-      `Polling: ${trackedMarkets.length} tracked, none due yet`
-    );
-    return;
-  }
+    try {
+      const prices = await getBatchPrices([market.yesTokenId]);
+      const yesPrice = prices.get(market.yesTokenId);
 
-  logger.info(`Polling ${due.length} markets (${trackedMarkets.length} tracked total)`);
-
-  // Collect all token IDs for batch fetch
-  const tokenIds: string[] = [];
-  const tokenToMarket = new Map<string, (typeof due)[number]>();
-
-  for (const market of due) {
-    if (market.yesTokenId) {
-      tokenIds.push(market.yesTokenId);
-      tokenToMarket.set(market.yesTokenId, market);
-    }
-  }
-
-  if (tokenIds.length === 0) return;
-
-  // Batch fetch prices (up to 20 per call)
-  try {
-    for (let i = 0; i < tokenIds.length; i += 20) {
-      const batch = tokenIds.slice(i, i + 20);
-      const prices = await getBatchPrices(batch);
-
-      for (const [tokenId, yesPrice] of prices) {
-        const market = tokenToMarket.get(tokenId);
-        if (!market) continue;
-
-        const noPrice = 1 - yesPrice;
-
+      if (yesPrice != null) {
         await db
           .update(markets)
           .set({
             currentYesPrice: String(yesPrice),
-            currentNoPrice: String(noPrice),
+            currentNoPrice: String(1 - yesPrice),
             lastPolledAt: new Date(),
             updatedAt: new Date(),
           })
           .where(eq(markets.id, market.id));
+
+        logger.debug(
+          `Updated market ${market.id}: yes=${yesPrice.toFixed(4)}`
+        );
       }
+    } catch (err) {
+      logger.error(`Price fetch failed for market ${market.id}:`, err);
     }
 
-    logger.debug(`Updated prices for ${due.length} markets`);
-  } catch (err) {
-    logger.error("Batch price fetch failed:", err);
+    // Wait before polling next market (skip delay after last one)
+    if (!stopped && market !== trackedMarkets[trackedMarkets.length - 1]) {
+      await new Promise((r) => setTimeout(r, interval));
+    }
   }
-}
 
-function getInterval(endDate: Date | null): number {
-  if (!endDate) return INTERVAL_FAR;
-
-  const msUntilClose = endDate.getTime() - Date.now();
-
-  if (msUntilClose < 0) return INTERVAL_PAST; // past end date
-  if (msUntilClose < 24 * 60 * 60 * 1000) return INTERVAL_CLOSE; // < 24h
-  if (msUntilClose < 7 * 24 * 60 * 60 * 1000) return INTERVAL_MEDIUM; // < 7 days
-  return INTERVAL_FAR; // > 7 days
+  // Return remaining time in cycle (or 0 if we took longer than the cycle)
+  return Math.max(interval, 0);
 }

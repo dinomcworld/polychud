@@ -2,7 +2,7 @@ import * as cron from "node-cron";
 import { and, eq, or, lte, gte, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { bets, markets, users } from "../db/schema.js";
-import { getMarketById } from "../services/polymarket.js";
+import { getMarketByConditionId } from "../services/polymarket.js";
 import { resolveMarketBets, resolveEventBets } from "../services/betting.js";
 import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
@@ -84,7 +84,7 @@ async function runResolutionCheck() {
     for (const market of candidateMarkets) {
       try {
         // Fetch current state from Gamma API
-        const gamma = await getMarketById(market.polymarketConditionId);
+        const gamma = await getMarketByConditionId(market.polymarketConditionId);
         if (!gamma) {
           logger.warn(
             `Could not fetch market ${market.polymarketConditionId} from Gamma`

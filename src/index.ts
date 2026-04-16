@@ -1,4 +1,4 @@
-import { Client, Collection, Events, GatewayIntentBits } from "discord.js";
+import { ActivityType, Client, Collection, Events, GatewayIntentBits } from "discord.js";
 import { config } from "./config.js";
 import { logger } from "./utils/logger.js";
 import { runMigrations } from "./db/migrate.js";
@@ -44,6 +44,11 @@ const client = new Client({
 // Ready
 client.once(Events.ClientReady, (readyClient) => {
   logger.info(`Bot online as ${readyClient.user.tag}`);
+
+  readyClient.user.setPresence({
+    activities: [{ name: "Nothing Ever Happens", type: ActivityType.Watching }],
+    status: "online",
+  });
 
   // Start background jobs after bot is ready
   startResolver();

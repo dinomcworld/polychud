@@ -8,7 +8,7 @@ import {
 import { escapeMarkdown } from "./marketCard.js";
 
 export interface EventCardData {
-  eventDbId: number;
+  polyEventId: string;
   title: string;
   slug: string | null;
   imageUrl: string | null;
@@ -19,7 +19,7 @@ export interface EventCardData {
 }
 
 export interface EventOutcome {
-  marketDbId: number;
+  conditionId: string;
   label: string;
   yesPrice: number;
   status: string;
@@ -117,7 +117,7 @@ export function buildEventSelectMenu(
   const sorted = [...display].sort((a, b) => b.yesPrice - a.yesPrice);
 
   const menu = new StringSelectMenuBuilder()
-    .setCustomId(`event_select_${event.eventDbId}`)
+    .setCustomId(`event_select_${event.polyEventId}`)
     .setPlaceholder("Select an outcome to bet on...")
     .addOptions(
       sorted.slice(0, 25).map((o) => {
@@ -131,7 +131,7 @@ export function buildEventSelectMenu(
         return {
           label,
           description: desc,
-          value: String(o.marketDbId),
+          value: o.conditionId,
         };
       })
     );
@@ -140,7 +140,7 @@ export function buildEventSelectMenu(
 }
 
 export function buildEventButtons(
-  eventDbId: number,
+  polyEventId: string,
   slug: string | null,
   showResolved = false,
   hasHiddenOutcomes = false
@@ -149,7 +149,7 @@ export function buildEventButtons(
 
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(`refresh_event_${eventDbId}`)
+      .setCustomId(`refresh_event_${polyEventId}`)
       .setLabel("Refresh")
       .setStyle(ButtonStyle.Secondary)
   );
@@ -159,8 +159,8 @@ export function buildEventButtons(
       new ButtonBuilder()
         .setCustomId(
           showResolved
-            ? `hide_resolved_${eventDbId}`
-            : `show_resolved_${eventDbId}`
+            ? `hide_resolved_${polyEventId}`
+            : `show_resolved_${polyEventId}`
         )
         .setLabel(showResolved ? "Hide Resolved" : "Show Resolved")
         .setStyle(ButtonStyle.Secondary)
@@ -179,9 +179,9 @@ export function buildEventButtons(
   return row;
 }
 
-export function buildBackToEventButton(eventDbId: number) {
+export function buildBackToEventButton(polyEventId: string) {
   return new ButtonBuilder()
-    .setCustomId(`back_event_${eventDbId}`)
+    .setCustomId(`back_event_${polyEventId}`)
     .setLabel("Back to Event")
     .setStyle(ButtonStyle.Secondary);
 }
