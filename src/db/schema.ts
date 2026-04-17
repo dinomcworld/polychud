@@ -20,6 +20,7 @@ export const events = pgTable(
     polymarketEventId: varchar("polymarket_event_id", { length: 255 })
       .notNull()
       .unique(),
+    slug: varchar("slug", { length: 255 }),
     status: varchar("status", { length: 20 }).notNull().default("active"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -36,7 +37,9 @@ export const markets = pgTable(
   "markets",
   {
     id: serial("id").primaryKey(),
-    eventId: integer("event_id").references(() => events.id),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => events.id),
     polymarketConditionId: varchar("polymarket_condition_id", { length: 255 })
       .notNull()
       .unique(),
@@ -127,7 +130,9 @@ export const bets = pgTable(
     marketId: integer("market_id")
       .notNull()
       .references(() => markets.id),
-    eventId: integer("event_id").references(() => events.id),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => events.id),
     guildId: varchar("guild_id", { length: 20 }).notNull(),
     outcome: varchar("outcome", { length: 3 }).notNull(), // 'yes' or 'no'
     amount: integer("amount").notNull(),

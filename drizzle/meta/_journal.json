@@ -22,6 +22,13 @@
       "when": 1776361727540,
       "tag": "0002_fantastic_lady_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776429293918,
+      "tag": "0003_unusual_outlaw_kid",
+      "breakpoints": true
     }
   ]
 }

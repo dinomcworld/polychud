@@ -130,18 +130,14 @@ async function runResolutionCheck() {
           })
           .where(eq(markets.id, market.id));
 
-        // Check if multi-outcome event
-        if (market.eventId && !processedEvents.has(market.eventId)) {
+        // Resolve at the event level (handles both single- and multi-outcome events)
+        if (!processedEvents.has(market.eventId)) {
           processedEvents.add(market.eventId);
           const result = await resolveEventBets(market.eventId);
           totalSettled += result.totalSettled;
           logger.info(
             `Event ${market.eventId}: settled ${result.totalSettled} bets, winner market: ${result.winningMarketId}`,
           );
-        } else if (!market.eventId) {
-          const settled = await resolveMarketBets(market.id, winningOutcome);
-          totalSettled += settled;
-          logger.info(`Market ${market.id}: settled ${settled} bets`);
         }
       } catch (err) {
         logger.error(`Error checking resolution for market ${market.id}:`, err);
