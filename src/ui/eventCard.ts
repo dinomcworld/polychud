@@ -115,7 +115,8 @@ export function buildEventSelectMenu(
       );
 
   const display = filtered.length > 0 ? filtered : event.outcomes;
-  const sorted = [...display].sort((a, b) => b.yesPrice - a.yesPrice);
+  const selectable = display.filter((o) => o.conditionId);
+  const sorted = [...selectable].sort((a, b) => b.yesPrice - a.yesPrice);
 
   const menu = new StringSelectMenuBuilder()
     .setCustomId(`event_select_${event.polyEventId}`)
