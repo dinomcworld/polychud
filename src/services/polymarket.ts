@@ -172,6 +172,13 @@ function parseMarket(raw: RawApiObject): GammaMarket {
 }
 
 function parseEvent(raw: RawApiObject): GammaEvent {
+  const allMarkets: GammaMarket[] = (raw.markets ?? []).map(parseMarket);
+  // Drop untraded placeholder sub-markets (neg-risk events pre-create slots
+  // like "Person A" at 50% with zero volume). Keep closed/resolved markets so
+  // history still renders; fall back to the full list if everything is empty.
+  const real = allMarkets.filter((m) => m.closed || m.volume > 0);
+  const markets = real.length > 0 ? real : allMarkets;
+
   return {
     id: String(raw.id),
     slug: raw.slug ?? "",
@@ -183,7 +190,7 @@ function parseEvent(raw: RawApiObject): GammaEvent {
     closed: raw.closed ?? false,
     endDate: raw.endDate ?? null,
     negRisk: raw.negRisk ?? false,
-    markets: (raw.markets ?? []).map(parseMarket),
+    markets,
     commentCount: raw.commentCount ?? 0,
     volume:
       typeof raw.volume === "string"
@@ -207,7 +214,7 @@ function safeJsonParse<T>(str: string | T | null | undefined, fallback: T): T {
 
 export async function searchMarkets(query: string): Promise<GammaEvent[]> {
   logger.debug(`search: query=${JSON.stringify(query)}`);
-  const url = `${config.POLYMARKET_GAMMA_URL}/public-search?q=${encodeURIComponent(query)}&limit_per_type=10`;
+  const url = `${config.POLYMARKET_GAMMA_URL}/public-search?q=${encodeURIComponent(query)}&limit_per_type=50`;
   const response = await fetchWithRetry(url);
   const data = (await response.json()) as {
     events?: RawApiObject[];
