@@ -16,7 +16,10 @@ export const leaderboardCommand: Command = {
         .setRequired(false)
         .addChoices(
           { name: "Net P&L (points gained/lost)", value: "net" },
-          { name: "Portfolio value (balance + open positions)", value: "portfolio" },
+          {
+            name: "Portfolio value (balance + open positions)",
+            value: "portfolio",
+          },
           { name: "Points (balance)", value: "points" },
           { name: "Skill (accumulated %)", value: "skill" },
           { name: "Average (per bet)", value: "average" },
@@ -55,9 +58,7 @@ export const leaderboardCommand: Command = {
           net: sql<string>`COALESCE(SUM(${bets.actualPayout} - ${bets.amount}), 0)`,
         })
         .from(bets)
-        .where(
-          and(eq(bets.guildId, guildId), isNotNull(bets.actualPayout)),
-        )
+        .where(and(eq(bets.guildId, guildId), isNotNull(bets.actualPayout)))
         .groupBy(bets.userId);
       for (const r of rows) netByUserId.set(r.userId, Number(r.net));
     }
@@ -75,7 +76,8 @@ export const leaderboardCommand: Command = {
         .innerJoin(markets, eq(bets.marketId, markets.id))
         .where(and(eq(bets.guildId, guildId), eq(bets.status, "pending")))
         .groupBy(bets.userId);
-      for (const r of rows) openValueByUserId.set(r.userId, Number(r.openValue));
+      for (const r of rows)
+        openValueByUserId.set(r.userId, Number(r.openValue));
     }
 
     // Sort based on mode
