@@ -6,6 +6,7 @@ import type { GammaEvent, GammaMarket } from "./polymarket.js";
 export async function upsertEvent(gamma: GammaEvent) {
   const values = {
     polymarketEventId: gamma.id,
+    slug: gamma.slug || null,
     status: gamma.closed ? "closed" : gamma.active ? "active" : "inactive",
     updatedAt: new Date(),
   };
@@ -29,17 +30,14 @@ export async function upsertEvent(gamma: GammaEvent) {
   return created.id;
 }
 
-export async function upsertMarket(
-  gamma: GammaMarket,
-  eventDbId?: number | null,
-) {
+export async function upsertMarket(gamma: GammaMarket, eventDbId: number) {
   const yesPrice = gamma.outcomePrices[0] ?? 0.5;
   const noPrice = gamma.outcomePrices[1] ?? 1 - yesPrice;
   const yesTokenId = gamma.clobTokenIds[0] ?? null;
   const noTokenId = gamma.clobTokenIds[1] ?? null;
 
   const values = {
-    eventId: eventDbId ?? null,
+    eventId: eventDbId,
     polymarketConditionId: gamma.conditionId,
     question: gamma.question,
     yesTokenId,
@@ -86,15 +84,15 @@ export async function upsertEventWithMarkets(gamma: GammaEvent) {
   return { eventDbId, marketIdMap };
 }
 
-/** Upsert a standalone market (auto-upserting its parent event if present). */
+/** Upsert a standalone market together with its parent event. */
 export async function upsertStandaloneMarket(gamma: GammaMarket) {
-  let eventDbId: number | null = null;
-
   const parentEvent = gamma.events?.[0];
-  if (parentEvent) {
-    eventDbId = await upsertEvent(parentEvent);
+  if (!parentEvent) {
+    throw new Error(
+      `Market ${gamma.conditionId} is missing a parent event; refusing to upsert.`,
+    );
   }
 
-  const dbId = await upsertMarket(gamma, eventDbId);
-  return dbId;
+  const eventDbId = await upsertEvent(parentEvent);
+  return upsertMarket(gamma, eventDbId);
 }

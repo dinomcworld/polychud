@@ -36,6 +36,10 @@ import { logger } from "../utils/logger.js";
 export async function handleButton(interaction: ButtonInteraction) {
   const id = interaction.customId;
 
+  logger.debug(
+    `button: user=${interaction.user.id} guild=${interaction.guildId ?? "dm"} customId=${id}`,
+  );
+
   if (id.startsWith("bet_yes_") || id.startsWith("bet_no_")) {
     await handleBetButton(interaction);
   } else if (id.startsWith("refresh_event_")) {
@@ -388,12 +392,17 @@ async function handleCloseBet(interaction: ButtonInteraction) {
 
     const timestamp = Date.now();
 
+    const eventSlug = bet.market.event?.slug ?? null;
+    const marketLine = eventSlug
+      ? `**Market:** [${bet.market.question}](https://polymarket.com/event/${eventSlug})`
+      : `**Market:** ${bet.market.question}`;
+
     const embed = new EmbedBuilder()
       .setTitle("Close bet early?")
       .setColor(profit >= 0 ? 0x00cc66 : 0xff4444)
       .setDescription(
         [
-          `**Market:** ${bet.market.question}`,
+          marketLine,
           `**Your bet:** ${bet.outcome.toUpperCase()} at ${(entryPrice * 100).toFixed(1)}%`,
           `**Current price:** ${(currentPrice * 100).toFixed(1)}%`,
           "\u2500".repeat(20),
@@ -476,12 +485,17 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
       const priceDelta = currentPrice - entryPrice;
       const newTimestamp = Date.now();
 
+      const eventSlug = bet.market.event?.slug ?? null;
+      const marketLine = eventSlug
+        ? `**Market:** [${bet.market.question}](https://polymarket.com/event/${eventSlug})`
+        : `**Market:** ${bet.market.question}`;
+
       const embed = new EmbedBuilder()
         .setTitle("Price updated — confirm close?")
         .setColor(profit >= 0 ? 0x00cc66 : 0xff4444)
         .setDescription(
           [
-            `**Market:** ${bet.market.question}`,
+            marketLine,
             `**Your bet:** ${bet.outcome.toUpperCase()} at ${(entryPrice * 100).toFixed(1)}%`,
             `**Current price:** ${(currentPrice * 100).toFixed(1)}%`,
             "\u2500".repeat(20),
@@ -529,12 +543,16 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
     return;
   }
 
+  const resultMarketLine = result.eventSlug
+    ? `**Market:** [${result.question}](https://polymarket.com/event/${result.eventSlug})`
+    : `**Market:** ${result.question}`;
+
   const embed = new EmbedBuilder()
     .setTitle("Bet Closed")
     .setColor(result.profit >= 0 ? 0x00cc66 : 0xff4444)
     .setDescription(
       [
-        `**Market:** ${result.question}`,
+        resultMarketLine,
         `**Entry:** ${(result.entryPrice * 100).toFixed(1)}% \u2192 **Exit:** ${(result.exitPrice * 100).toFixed(1)}%`,
         `**Staked:** ${result.staked.toLocaleString()} pts`,
         `**Returned:** ${result.cashOut.toLocaleString()} pts (${result.profit >= 0 ? "+" : ""}${result.profit.toLocaleString()})`,

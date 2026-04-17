@@ -21,6 +21,10 @@ export async function handleSelectMenu(
 ) {
   const id = interaction.customId;
 
+  logger.debug(
+    `select: user=${interaction.user.id} guild=${interaction.guildId ?? "dm"} customId=${id} values=${JSON.stringify(interaction.values)}`,
+  );
+
   if (id === "market_select") {
     await handleMarketSelect(interaction);
   } else if (id.startsWith("event_select_")) {

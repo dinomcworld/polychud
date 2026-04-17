@@ -147,6 +147,10 @@ export async function placeBet(
       })
       .where(eq(markets.id, marketId));
 
+    logger.info(
+      `bet placed: betId=${result.betId} user=${discordId} guild=${guildId} marketId=${marketId} outcome=${outcome} stake=${amount} entry=${price.toFixed(4)} payout=${potentialPayout} balance=${result.newBalance}`,
+    );
+
     return {
       success: true,
       betId: result.betId,
@@ -173,7 +177,7 @@ export async function getUserActiveBets(discordId: string, guildId?: string) {
 
   const activeBets = await db.query.bets.findMany({
     where: and(...conditions),
-    with: { market: true },
+    with: { market: { with: { event: true } } },
     orderBy: (bets, { desc }) => desc(bets.placedAt),
   });
 
@@ -183,7 +187,7 @@ export async function getUserActiveBets(discordId: string, guildId?: string) {
 export async function getBetById(betId: number) {
   return db.query.bets.findFirst({
     where: eq(bets.id, betId),
-    with: { market: true },
+    with: { market: { with: { event: true } } },
   });
 }
 
@@ -192,6 +196,7 @@ export async function getBetById(betId: number) {
 export interface CloseBetSuccess {
   success: true;
   question: string;
+  eventSlug: string | null;
   entryPrice: number;
   exitPrice: number;
   staked: number;
@@ -240,9 +245,10 @@ export async function closeBet(
       if (lockedBet.userId !== lockedMember.userId)
         throw new Error("This isn't your bet.");
 
-      // Get market data
+      // Get market data (with parent event for slug)
       const market = await tx.query.markets.findFirst({
         where: eq(markets.id, lockedBet.marketId),
+        with: { event: true },
       });
 
       if (!market) throw new Error("Market not found.");
@@ -293,6 +299,7 @@ export async function closeBet(
 
       return {
         question: market.question,
+        eventSlug: market.event?.slug ?? null,
         entryPrice,
         exitPrice: currentPrice,
         staked: lockedBet.amount,

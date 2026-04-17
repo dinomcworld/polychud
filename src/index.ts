@@ -68,6 +68,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         logger.warn(`Unknown command: ${interaction.commandName}`);
         return;
       }
+      const sub = interaction.options.getSubcommand(false);
+      logger.debug(
+        `command: user=${interaction.user.id} guild=${interaction.guildId ?? "dm"} /${interaction.commandName}${sub ? ` ${sub}` : ""}`,
+      );
       await command.execute(interaction);
     } else if (interaction.isButton()) {
       await handleButton(interaction);

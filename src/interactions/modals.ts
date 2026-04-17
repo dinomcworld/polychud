@@ -15,9 +15,14 @@ import {
 } from "../services/polymarket.js";
 import { ensureGuildSettings, ensureUser } from "../services/users.js";
 import { requireGuildId } from "../utils/guards.js";
+import { logger } from "../utils/logger.js";
 
 export async function handleModal(interaction: ModalSubmitInteraction) {
   const id = interaction.customId;
+
+  logger.debug(
+    `modal: user=${interaction.user.id} guild=${interaction.guildId ?? "dm"} customId=${id}`,
+  );
 
   if (id.startsWith("betmodal_")) {
     await handleBetModal(interaction);

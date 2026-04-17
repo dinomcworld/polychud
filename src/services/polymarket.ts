@@ -93,32 +93,48 @@ async function fetchWithRetry(
 ): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
+  const method = options.method ?? "GET";
+  const reqBody = options.body ? ` body=${String(options.body)}` : "";
+  const startedAt = Date.now();
+
+  logger.debug(`API -> ${method} ${url}${reqBody}`);
 
   try {
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
     });
+    const durationMs = Date.now() - startedAt;
 
     if (response.status === 429 && retries > 0) {
       const retryAfter = parseInt(
         response.headers.get("retry-after") || "2",
         10,
       );
-      logger.warn(`Rate limited, retrying in ${retryAfter}s...`);
+      logger.warn(
+        `API 429 ${method} ${url} (${durationMs}ms) — retrying in ${retryAfter}s`,
+      );
       await new Promise((r) => setTimeout(r, retryAfter * 1000));
       return fetchWithRetry(url, options, retries - 1);
     }
 
     if (!response.ok) {
       const resBody = await response.text().catch(() => "(unreadable)");
-      const method = options.method ?? "GET";
-      const reqBody = options.body ? ` body=${options.body}` : "";
       logger.debug(
-        `API ${response.status} ${method} ${url}${reqBody} -> ${resBody}`,
+        `API <- ${response.status} ${method} ${url} (${durationMs}ms)${reqBody} -> ${resBody}`,
       );
       throw new Error(`API error ${response.status}: ${response.statusText}`);
     }
+
+    const cloned = response.clone();
+    const resBody = await cloned.text().catch(() => "(unreadable)");
+    const bodyPreview =
+      resBody.length > 500
+        ? `${resBody.slice(0, 500)}…(${resBody.length}b)`
+        : resBody;
+    logger.debug(
+      `API <- ${response.status} ${method} ${url} (${durationMs}ms) ${bodyPreview}`,
+    );
 
     return response;
   } finally {
@@ -190,6 +206,7 @@ function safeJsonParse<T>(str: string | T | null | undefined, fallback: T): T {
 // ─── Gamma API ────────────────────────────────────────────────────────────────
 
 export async function searchMarkets(query: string): Promise<GammaEvent[]> {
+  logger.debug(`search: query=${JSON.stringify(query)}`);
   const url = `${config.POLYMARKET_GAMMA_URL}/public-search?q=${encodeURIComponent(query)}&limit_per_type=10`;
   const response = await fetchWithRetry(url);
   const data = (await response.json()) as {
@@ -211,6 +228,9 @@ export async function searchMarkets(query: string): Promise<GammaEvent[]> {
     results.push(parsed);
   }
 
+  logger.debug(
+    `search: query=${JSON.stringify(query)} -> ${results.length} events`,
+  );
   return results;
 }
 
@@ -226,7 +246,8 @@ export async function getTrendingMarkets(
     eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
     for (const m of event.markets) {
       if (!m.conditionId) continue;
-      marketCache.set(`market:${m.conditionId}`, m, MARKET_CACHE_TTL);
+      const withParent = { ...m, events: [event] };
+      marketCache.set(`market:${m.conditionId}`, withParent, MARKET_CACHE_TTL);
     }
   }
 
@@ -244,7 +265,8 @@ export async function getEventBySlug(slug: string): Promise<GammaEvent | null> {
   eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
   for (const m of event.markets) {
     if (!m.conditionId) continue;
-    marketCache.set(`market:${m.conditionId}`, m, MARKET_CACHE_TTL);
+    const withParent = { ...m, events: [event] };
+    marketCache.set(`market:${m.conditionId}`, withParent, MARKET_CACHE_TTL);
   }
   return event;
 }

@@ -59,6 +59,11 @@ async function handleBetList(
         : bet.market.question
       : `Market #${bet.marketId}`;
 
+    const eventSlug = bet.market?.event?.slug ?? null;
+    const titleLine = eventSlug
+      ? `[${question}](https://polymarket.com/event/${eventSlug})`
+      : question;
+
     const entryPrice = parseFloat(bet.oddsAtBet);
     const entryPct = (entryPrice * 100).toFixed(1);
 
@@ -77,8 +82,9 @@ async function handleBetList(
       unrealizedPnL >= 0 ? `+${unrealizedPnL}` : `${unrealizedPnL}`;
 
     return {
-      name: `#${bet.id} — ${bet.outcome.toUpperCase()} on ${question}`,
+      name: `#${bet.id} — ${bet.outcome.toUpperCase()}`,
       value: [
+        titleLine,
         `Stake: **${bet.amount.toLocaleString()}** pts`,
         `Entry: ${entryPct}% \u2192 Now: ${currentPct}%`,
         `Potential payout: **${bet.potentialPayout.toLocaleString()}** pts`,
