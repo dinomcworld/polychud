@@ -1,7 +1,8 @@
 import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
-import type { Command } from "./types.js";
-import { getUserStats } from "../services/users.js";
 import { getUserActiveBets } from "../services/betting.js";
+import { getUserStats } from "../services/users.js";
+import { requireGuildId } from "../utils/guards.js";
+import type { Command } from "./types.js";
 
 export const portfolioCommand: Command = {
   data: new SlashCommandBuilder()
@@ -11,15 +12,11 @@ export const portfolioCommand: Command = {
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
-    const stats = await getUserStats(
-      interaction.user.id,
-      interaction.guildId!
-    );
+    const guildId = await requireGuildId(interaction);
+    if (!guildId) return;
 
-    const activeBets = await getUserActiveBets(
-      interaction.user.id,
-      interaction.guildId!
-    );
+    const stats = await getUserStats(interaction.user.id, guildId);
+    const activeBets = await getUserActiveBets(interaction.user.id, guildId);
 
     const pctSign = stats.accumulatedPct >= 0 ? "+" : "";
     const pctColor =
@@ -48,7 +45,7 @@ export const portfolioCommand: Command = {
           name: "Avg Per Bet",
           value:
             stats.totalBetsSettled > 0
-              ? `${(stats.accumulatedPct / stats.totalBetsSettled >= 0 ? "+" : "")}${(stats.accumulatedPct / stats.totalBetsSettled).toFixed(2)}`
+              ? `${stats.accumulatedPct / stats.totalBetsSettled >= 0 ? "+" : ""}${(stats.accumulatedPct / stats.totalBetsSettled).toFixed(2)}`
               : "N/A",
           inline: true,
         },
@@ -61,7 +58,7 @@ export const portfolioCommand: Command = {
           name: "Win Rate",
           value: `${stats.winRate}% (${stats.totalWon}/${stats.totalBetsSettled})`,
           inline: true,
-        }
+        },
       )
       .setTimestamp();
 
@@ -70,7 +67,7 @@ export const portfolioCommand: Command = {
       const betLines = activeBets.slice(0, 5).map((bet) => {
         const question = bet.market
           ? bet.market.question.length > 40
-            ? bet.market.question.slice(0, 37) + "..."
+            ? `${bet.market.question.slice(0, 37)}...`
             : bet.market.question
           : `Market #${bet.marketId}`;
 
@@ -79,7 +76,7 @@ export const portfolioCommand: Command = {
           ? parseFloat(
               bet.outcome === "yes"
                 ? bet.market.currentYesPrice || "0.5"
-                : bet.market.currentNoPrice || "0.5"
+                : bet.market.currentNoPrice || "0.5",
             )
           : entryPrice;
 

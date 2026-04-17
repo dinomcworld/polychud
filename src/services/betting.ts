@@ -1,10 +1,10 @@
 import { and, eq, sql } from "drizzle-orm";
+import { config } from "../config.js";
 import { db } from "../db/index.js";
 import { bets, events, guildMembers, markets, users } from "../db/schema.js";
+import { logger } from "../utils/logger.js";
 import { getMidpointPrice } from "./polymarket.js";
 import { ensureUser } from "./users.js";
-import { config } from "../config.js";
-import { logger } from "../utils/logger.js";
 
 export interface PlaceBetResult {
   success: true;
@@ -24,7 +24,7 @@ export async function placeBet(
   marketId: number,
   guildId: string,
   outcome: "yes" | "no",
-  amount: number
+  amount: number,
 ): Promise<PlaceBetResult | PlaceBetError> {
   const { user, member } = await ensureUser(discordId, guildId);
 
@@ -42,7 +42,7 @@ export async function placeBet(
     where: and(
       eq(bets.userId, user.id),
       eq(bets.guildId, guildId),
-      eq(bets.status, "pending")
+      eq(bets.status, "pending"),
     ),
   });
 
@@ -54,7 +54,7 @@ export async function placeBet(
   }
 
   const userBetsOnMarket = userActiveBets.filter(
-    (b) => b.marketId === marketId
+    (b) => b.marketId === marketId,
   );
   if (userBetsOnMarket.length >= config.MAX_ACTIVE_BETS_PER_MARKET) {
     return {
@@ -64,8 +64,7 @@ export async function placeBet(
   }
 
   // Fetch fresh price
-  const tokenId =
-    outcome === "yes" ? market.yesTokenId : market.noTokenId;
+  const tokenId = outcome === "yes" ? market.yesTokenId : market.noTokenId;
   if (!tokenId) {
     return { success: false, error: "Market pricing data unavailable." };
   }
@@ -101,7 +100,7 @@ export async function placeBet(
 
       if (!lockedMember || lockedMember.pointsBalance < amount) {
         throw new Error(
-          `Insufficient balance. You have ${lockedMember?.pointsBalance ?? 0} points.`
+          `Insufficient balance. You have ${lockedMember?.pointsBalance ?? 0} points.`,
         );
       }
 
@@ -130,8 +129,9 @@ export async function placeBet(
         })
         .returning();
 
+      if (!bet) throw new Error("Failed to insert bet.");
       return {
-        betId: bet!.id,
+        betId: bet.id,
         newBalance: lockedMember.pointsBalance - amount,
       };
     });
@@ -208,7 +208,7 @@ export interface CloseBetError {
 export async function closeBet(
   betId: number,
   discordId: string,
-  guildId: string
+  guildId: string,
 ): Promise<CloseBetSuccess | CloseBetError> {
   const { member } = await ensureUser(discordId, guildId);
 
@@ -222,7 +222,8 @@ export async function closeBet(
         .for("update");
 
       if (!lockedBet) throw new Error("Bet not found.");
-      if (lockedBet.guildId !== guildId) throw new Error("This bet belongs to a different server.");
+      if (lockedBet.guildId !== guildId)
+        throw new Error("This bet belongs to a different server.");
       if (lockedBet.status !== "pending")
         throw new Error(`Bet is already ${lockedBet.status}.`);
 
@@ -254,7 +255,7 @@ export async function closeBet(
       const currentPrice = await getMidpointPrice(tokenId);
       const entryPrice = parseFloat(lockedBet.oddsAtBet);
       const cashOutAmount = Math.floor(
-        lockedBet.amount * (currentPrice / entryPrice)
+        lockedBet.amount * (currentPrice / entryPrice),
       );
       const priceDelta = currentPrice - entryPrice;
 
@@ -297,7 +298,7 @@ export async function closeBet(
         staked: lockedBet.amount,
         cashOut: cashOutAmount,
         profit: cashOutAmount - lockedBet.amount,
-        newBalance: updatedMember!.pointsBalance,
+        newBalance: updatedMember?.pointsBalance ?? 0,
       };
     });
 
@@ -316,7 +317,7 @@ export async function closeBet(
  */
 export async function resolveMarketBets(
   marketId: number,
-  winningOutcome: "yes" | "no"
+  winningOutcome: "yes" | "no",
 ): Promise<number> {
   let settledCount = 0;
 
@@ -353,12 +354,14 @@ export async function resolveMarketBets(
         .where(
           and(
             eq(guildMembers.userId, bet.userId),
-            eq(guildMembers.guildId, bet.guildId)
-          )
+            eq(guildMembers.guildId, bet.guildId),
+          ),
         );
 
       if (!member) {
-        logger.warn(`No guild member found for user ${bet.userId} in guild ${bet.guildId}`);
+        logger.warn(
+          `No guild member found for user ${bet.userId} in guild ${bet.guildId}`,
+        );
         return;
       }
 
@@ -402,7 +405,7 @@ export async function resolveMarketBets(
  * Identifies the winning sub-market (YES price ≈ 1.0) and resolves all others as NO.
  */
 export async function resolveEventBets(
-  eventDbId: number
+  eventDbId: number,
 ): Promise<{ totalSettled: number; winningMarketId: number | null }> {
   const event = await db.query.events.findFirst({
     where: eq(events.id, eventDbId),

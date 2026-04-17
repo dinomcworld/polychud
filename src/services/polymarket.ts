@@ -45,7 +45,7 @@ export interface GammaEvent {
   volume24hr: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: raw external API shape; parsed at boundaries below
 type RawApiObject = Record<string, any>;
 
 // ─── Cache ────────────────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ const PRICE_CACHE_TTL = 10_000; // 10s
 async function fetchWithRetry(
   url: string,
   options: RequestInit = {},
-  retries = 2
+  retries = 2,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -101,7 +101,10 @@ async function fetchWithRetry(
     });
 
     if (response.status === 429 && retries > 0) {
-      const retryAfter = parseInt(response.headers.get("retry-after") || "2");
+      const retryAfter = parseInt(
+        response.headers.get("retry-after") || "2",
+        10,
+      );
       logger.warn(`Rate limited, retrying in ${retryAfter}s...`);
       await new Promise((r) => setTimeout(r, retryAfter * 1000));
       return fetchWithRetry(url, options, retries - 1);
@@ -112,7 +115,7 @@ async function fetchWithRetry(
       const method = options.method ?? "GET";
       const reqBody = options.body ? ` body=${options.body}` : "";
       logger.debug(
-        `API ${response.status} ${method} ${url}${reqBody} -> ${resBody}`
+        `API ${response.status} ${method} ${url}${reqBody} -> ${resBody}`,
       );
       throw new Error(`API error ${response.status}: ${response.statusText}`);
     }
@@ -166,7 +169,10 @@ function parseEvent(raw: RawApiObject): GammaEvent {
     negRisk: raw.negRisk ?? false,
     markets: (raw.markets ?? []).map(parseMarket),
     commentCount: raw.commentCount ?? 0,
-    volume: typeof raw.volume === "string" ? parseFloat(raw.volume) : (raw.volume ?? 0),
+    volume:
+      typeof raw.volume === "string"
+        ? parseFloat(raw.volume)
+        : (raw.volume ?? 0),
     volume24hr: raw.volume24hr ?? 0,
   };
 }
@@ -208,7 +214,7 @@ export async function searchMarkets(query: string): Promise<GammaEvent[]> {
 }
 
 export async function getTrendingMarkets(
-  limit: number = 5
+  limit: number = 5,
 ): Promise<GammaEvent[]> {
   const url = `${config.POLYMARKET_GAMMA_URL}/events?active=true&closed=false&order=volume24hr&ascending=false&limit=${limit}`;
   const response = await fetchWithRetry(url);
@@ -225,15 +231,14 @@ export async function getTrendingMarkets(
   return results;
 }
 
-export async function getEventBySlug(
-  slug: string
-): Promise<GammaEvent | null> {
+export async function getEventBySlug(slug: string): Promise<GammaEvent | null> {
   const url = `${config.POLYMARKET_GAMMA_URL}/events?slug=${encodeURIComponent(slug)}`;
   const response = await fetchWithRetry(url);
   const raw = (await response.json()) as RawApiObject[];
-  if (raw.length === 0) return null;
+  const [first] = raw;
+  if (!first) return null;
 
-  const event = parseEvent(raw[0]!);
+  const event = parseEvent(first);
   eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
   for (const m of event.markets) {
     marketCache.set(`market:${m.conditionId}`, m, MARKET_CACHE_TTL);
@@ -242,20 +247,21 @@ export async function getEventBySlug(
 }
 
 export async function getMarketById(
-  marketId: string
+  marketId: string,
 ): Promise<GammaMarket | null> {
   const url = `${config.POLYMARKET_GAMMA_URL}/markets?id=${encodeURIComponent(marketId)}`;
   const response = await fetchWithRetry(url);
   const raw = (await response.json()) as RawApiObject[];
-  if (!raw || raw.length === 0) return null;
+  const [first] = raw ?? [];
+  if (!first) return null;
 
-  const market = parseMarket(raw[0]!);
+  const market = parseMarket(first);
   marketCache.set(`market:${market.conditionId}`, market, MARKET_CACHE_TTL);
   return market;
 }
 
 export async function getEventById(
-  eventId: string
+  eventId: string,
 ): Promise<GammaEvent | null> {
   const cached = eventCache.get(`event:${eventId}`);
   if (cached) return cached;
@@ -263,9 +269,10 @@ export async function getEventById(
   const url = `${config.POLYMARKET_GAMMA_URL}/events?id=${encodeURIComponent(eventId)}`;
   const response = await fetchWithRetry(url);
   const raw = (await response.json()) as RawApiObject[];
-  if (raw.length === 0) return null;
+  const [first] = raw;
+  if (!first) return null;
 
-  const event = parseEvent(raw[0]!);
+  const event = parseEvent(first);
   eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
   for (const m of event.markets) {
     m.events = [event];
@@ -275,14 +282,15 @@ export async function getEventById(
 }
 
 export async function getMarketByConditionId(
-  conditionId: string
+  conditionId: string,
 ): Promise<GammaMarket | null> {
   const url = `${config.POLYMARKET_GAMMA_URL}/markets?conditionId=${encodeURIComponent(conditionId)}`;
   const response = await fetchWithRetry(url);
   const raw = (await response.json()) as RawApiObject[];
-  if (!raw || raw.length === 0) return null;
+  const [first] = raw ?? [];
+  if (!first) return null;
 
-  const market = parseMarket(raw[0]!);
+  const market = parseMarket(first);
   marketCache.set(`market:${market.conditionId}`, market, MARKET_CACHE_TTL);
   return market;
 }
@@ -303,7 +311,7 @@ export async function getMidpointPrice(tokenId: string): Promise<number> {
 }
 
 export async function getBatchPrices(
-  tokenIds: string[]
+  tokenIds: string[],
 ): Promise<Map<string, number>> {
   const result = new Map<string, number>();
   const uncached: string[] = [];
@@ -325,7 +333,10 @@ export async function getBatchPrices(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = (await response.json()) as Record<string, { BUY?: string; SELL?: string }>;
+    const data = (await response.json()) as Record<
+      string,
+      { BUY?: string; SELL?: string }
+    >;
 
     for (const [tokenId, sides] of Object.entries(data)) {
       const buy = sides.BUY ? parseFloat(sides.BUY) : null;

@@ -5,14 +5,15 @@ import {
   EmbedBuilder,
   type ModalSubmitInteraction,
 } from "discord.js";
+import { config } from "../config.js";
+import { getUserActiveBets } from "../services/betting.js";
 import {
   getCachedMarket,
   getMarketByConditionId,
   getMidpointPrice,
 } from "../services/polymarket.js";
-import { ensureUser, ensureGuildSettings } from "../services/users.js";
-import { getUserActiveBets } from "../services/betting.js";
-import { config } from "../config.js";
+import { ensureGuildSettings, ensureUser } from "../services/users.js";
+import { requireGuildId } from "../utils/guards.js";
 
 export async function handleModal(interaction: ModalSubmitInteraction) {
   const id = interaction.customId;
@@ -31,22 +32,27 @@ async function handleBetModal(interaction: ModalSubmitInteraction) {
   await interaction.deferReply({ ephemeral: true });
 
   // betmodal_{conditionId}_{outcome}
-  const parts = interaction.customId.split("_");
-  const conditionId = parts[1]!;
-  const outcome = parts[2] as "yes" | "no";
+  const [, conditionId, outcome] = interaction.customId.split("_") as [
+    string,
+    string,
+    "yes" | "no",
+  ];
 
   const amountStr = interaction.fields.getTextInputValue("bet_amount").trim();
   const amount = parseInt(amountStr, 10);
 
-  if (isNaN(amount) || amount <= 0) {
+  if (Number.isNaN(amount) || amount <= 0) {
     await interaction.editReply({
       content: "Please enter a valid positive number.",
     });
     return;
   }
 
-  const guild = await ensureGuildSettings(interaction.guildId!);
-  const { member } = await ensureUser(interaction.user.id, interaction.guildId!);
+  const guildId = await requireGuildId(interaction);
+  if (!guildId) return;
+
+  const guild = await ensureGuildSettings(guildId);
+  const { member } = await ensureUser(interaction.user.id, guildId);
 
   // Validate amount
   if (amount < guild.minBet) {
@@ -98,9 +104,12 @@ async function handleBetModal(interaction: ModalSubmitInteraction) {
   }
 
   // Get fresh price from CLOB
-  const tokenId = outcome === "yes" ? gamma.clobTokenIds[0] : gamma.clobTokenIds[1];
+  const tokenId =
+    outcome === "yes" ? gamma.clobTokenIds[0] : gamma.clobTokenIds[1];
   if (!tokenId) {
-    await interaction.editReply({ content: "Market pricing data unavailable." });
+    await interaction.editReply({
+      content: "Market pricing data unavailable.",
+    });
     return;
   }
 
@@ -127,7 +136,7 @@ async function handleBetModal(interaction: ModalSubmitInteraction) {
         `**Outcome:** ${outcome.toUpperCase()} at ${pct}%`,
         `**Stake:** ${amount.toLocaleString()} pts`,
         `**Potential payout:** ${potentialPayout.toLocaleString()} pts (if you win)`,
-      ].join("\n")
+      ].join("\n"),
     )
     .setTimestamp();
 
@@ -139,7 +148,7 @@ async function handleBetModal(interaction: ModalSubmitInteraction) {
     new ButtonBuilder()
       .setCustomId("cancel_bet")
       .setLabel("Cancel")
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(ButtonStyle.Secondary),
   );
 
   await interaction.editReply({

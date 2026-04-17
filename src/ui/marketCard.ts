@@ -1,10 +1,10 @@
 import {
   ActionRowBuilder,
+  type APIEmbedField,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
   StringSelectMenuBuilder,
-  type APIEmbedField,
 } from "discord.js";
 
 interface MarketCardData {
@@ -36,7 +36,7 @@ export function buildMarketEmbed(market: MarketCardData) {
     : "https://polymarket.com";
 
   const embed = new EmbedBuilder()
-    .setTitle(title.length > 256 ? title.slice(0, 253) + "..." : title)
+    .setTitle(title.length > 256 ? `${title.slice(0, 253)}...` : title)
     .setURL(marketUrl)
     .setColor(market.status === "active" ? 0x00cc66 : 0x888888)
     .setFooter({ text: "Virtual betting \u2022 Not real money" })
@@ -79,7 +79,7 @@ export function buildMarketButtons(
   slug: string | null,
   isActive: boolean,
   eventSlug?: string | null,
-  polyEventId?: string | null
+  polyEventId?: string | null,
 ) {
   const row = new ActionRowBuilder<ButtonBuilder>();
 
@@ -92,7 +92,7 @@ export function buildMarketButtons(
       new ButtonBuilder()
         .setCustomId(`bet_no_${conditionId}`)
         .setLabel("Bet NO")
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Danger),
     );
   }
 
@@ -104,7 +104,7 @@ export function buildMarketButtons(
     new ButtonBuilder()
       .setCustomId(refreshId)
       .setLabel("Refresh")
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(ButtonStyle.Secondary),
   );
 
   const linkSlug = eventSlug || slug;
@@ -113,7 +113,7 @@ export function buildMarketButtons(
       new ButtonBuilder()
         .setLabel("Polymarket")
         .setStyle(ButtonStyle.Link)
-        .setURL(`https://polymarket.com/event/${linkSlug}`)
+        .setURL(`https://polymarket.com/event/${linkSlug}`),
     );
   }
 
@@ -130,23 +130,21 @@ export interface SearchResultItem {
 
 export function buildSearchResultsEmbed(
   query: string,
-  results: SearchResultItem[]
+  results: SearchResultItem[],
 ) {
   const lines = results.slice(0, 10).map((r, i) => {
     const q = escapeMarkdown(
-      r.question.length > 60 ? r.question.slice(0, 57) + "..." : r.question
+      r.question.length > 60 ? `${r.question.slice(0, 57)}...` : r.question,
     );
 
     // Show resolved/closed status
     if (r.status === "resolved" || r.status === "closed") {
-      const label = r.outcomeLabel
-        ? `${escapeMarkdown(r.outcomeLabel)}: `
-        : "";
+      const label = r.outcomeLabel ? `${escapeMarkdown(r.outcomeLabel)}: ` : "";
       return `**${i + 1}.** ${label}${q} — *Resolved*`;
     }
 
     // Multi-outcome items already have frontrunner info in outcomeLabel
-    if (r.outcomeLabel && r.outcomeLabel.includes(" outcomes")) {
+    if (r.outcomeLabel?.includes(" outcomes")) {
       return `**${i + 1}.** ${q} — ${escapeMarkdown(r.outcomeLabel)}`;
     }
 
@@ -167,7 +165,7 @@ export function buildSearchResultsEmbed(
 export function buildSearchSelectMenu(results: SearchResultItem[]) {
   // Filter to only active markets for the select menu
   const activeResults = results.filter(
-    (r) => !r.status || r.status === "active"
+    (r) => !r.status || r.status === "active",
   );
   const items = activeResults.length > 0 ? activeResults : results;
 
@@ -185,11 +183,11 @@ export function buildSearchSelectMenu(results: SearchResultItem[]) {
             ? "Resolved"
             : `${pct}% YES`;
         return {
-          label: label.length > 100 ? label.slice(0, 97) + "..." : label,
+          label: label.length > 100 ? `${label.slice(0, 97)}...` : label,
           description: desc,
           value: r.conditionId,
         };
-      })
+      }),
     );
 
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);

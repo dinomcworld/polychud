@@ -5,16 +5,17 @@ import {
   EmbedBuilder,
   SlashCommandBuilder,
 } from "discord.js";
-import type { Command } from "./types.js";
 import { getUserActiveBets } from "../services/betting.js";
 import { ensureUser } from "../services/users.js";
+import { requireGuildId } from "../utils/guards.js";
+import type { Command } from "./types.js";
 
 export const betCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("bet")
     .setDescription("Manage your bets")
     .addSubcommand((sub) =>
-      sub.setName("list").setDescription("List your active bets")
+      sub.setName("list").setDescription("List your active bets"),
     ),
 
   async execute(interaction) {
@@ -27,15 +28,15 @@ export const betCommand: Command = {
 };
 
 async function handleBetList(
-  interaction: import("discord.js").ChatInputCommandInteraction
+  interaction: import("discord.js").ChatInputCommandInteraction,
 ) {
   await interaction.deferReply({ ephemeral: true });
 
-  await ensureUser(interaction.user.id, interaction.guildId!);
-  const activeBets = await getUserActiveBets(
-    interaction.user.id,
-    interaction.guildId!
-  );
+  const guildId = await requireGuildId(interaction);
+  if (!guildId) return;
+
+  await ensureUser(interaction.user.id, guildId);
+  const activeBets = await getUserActiveBets(interaction.user.id, guildId);
 
   if (activeBets.length === 0) {
     await interaction.editReply({
@@ -50,10 +51,10 @@ async function handleBetList(
     .setColor(0x5865f2)
     .setTimestamp();
 
-  const fields = activeBets.slice(0, 5).map((bet, i) => {
+  const fields = activeBets.slice(0, 5).map((bet, _i) => {
     const question = bet.market
       ? bet.market.question.length > 50
-        ? bet.market.question.slice(0, 47) + "..."
+        ? `${bet.market.question.slice(0, 47)}...`
         : bet.market.question
       : `Market #${bet.marketId}`;
 
@@ -64,7 +65,7 @@ async function handleBetList(
       ? parseFloat(
           bet.outcome === "yes"
             ? bet.market.currentYesPrice || "0.5"
-            : bet.market.currentNoPrice || "0.5"
+            : bet.market.currentNoPrice || "0.5",
         )
       : entryPrice;
 
@@ -95,17 +96,19 @@ async function handleBetList(
 
   // Add close buttons (coming soon placeholder for Phase 2)
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
-  const closeButtons = activeBets.slice(0, 5).map((bet) =>
-    new ButtonBuilder()
-      .setCustomId(`close_bet_${bet.id}`)
-      .setLabel(`Close #${bet.id}`)
-      .setStyle(ButtonStyle.Secondary)
-  );
+  const closeButtons = activeBets
+    .slice(0, 5)
+    .map((bet) =>
+      new ButtonBuilder()
+        .setCustomId(`close_bet_${bet.id}`)
+        .setLabel(`Close #${bet.id}`)
+        .setStyle(ButtonStyle.Secondary),
+    );
 
   // Discord allows max 5 buttons per row
   if (closeButtons.length > 0) {
     rows.push(
-      new ActionRowBuilder<ButtonBuilder>().addComponents(closeButtons)
+      new ActionRowBuilder<ButtonBuilder>().addComponents(closeButtons),
     );
   }
 

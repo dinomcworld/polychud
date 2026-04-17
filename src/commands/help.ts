@@ -12,7 +12,7 @@ export const helpCommand: Command = {
       .setColor(0x5865f2)
       .setDescription(
         "Bet on real [Polymarket](https://polymarket.com) prediction markets using **virtual points**. " +
-          "No real money involved — just bragging rights and leaderboard glory."
+          "No real money involved — just bragging rights and leaderboard glory.",
       )
       .addFields(
         {
@@ -47,7 +47,7 @@ export const helpCommand: Command = {
           value:
             "Your accumulated % tracks how good your predictions are overall. " +
             "Positive = you're beating the market. Negative = the market is beating you.",
-        }
+        },
       )
       .setFooter({
         text: "Data from Polymarket • Virtual points only, not real money",

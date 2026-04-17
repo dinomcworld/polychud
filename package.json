@@ -8,9 +8,14 @@
     "start": "node dist/index.js",
     "deploy-commands": "tsx src/deploy-commands.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate.ts"
+    "db:migrate": "tsx src/db/migrate.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "format": "biome format --write"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.12",
     "@types/node": "^25.6.0",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.21.0",

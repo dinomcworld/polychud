@@ -1,10 +1,10 @@
+import { and, eq, gte, lte, or, sql } from "drizzle-orm";
 import * as cron from "node-cron";
-import { and, eq, or, lte, gte, sql } from "drizzle-orm";
-import { db } from "../db/index.js";
-import { bets, markets, guildMembers } from "../db/schema.js";
-import { getMarketByConditionId } from "../services/polymarket.js";
-import { resolveMarketBets, resolveEventBets } from "../services/betting.js";
 import { config } from "../config.js";
+import { db } from "../db/index.js";
+import { bets, guildMembers, markets } from "../db/schema.js";
+import { resolveEventBets, resolveMarketBets } from "../services/betting.js";
+import { getMarketByConditionId } from "../services/polymarket.js";
 import { logger } from "../utils/logger.js";
 
 let task: ReturnType<typeof cron.schedule> | null = null;
@@ -12,7 +12,7 @@ let running = false;
 
 export function startResolver() {
   logger.info(
-    `Starting resolution checker (cron: ${config.RESOLUTION_CHECK_CRON})`
+    `Starting resolution checker (cron: ${config.RESOLUTION_CHECK_CRON})`,
   );
 
   task = cron.schedule(config.RESOLUTION_CHECK_CRON, () => {
@@ -60,7 +60,7 @@ async function runResolutionCheck() {
       where: and(
         sql`${markets.id} IN (${sql.join(
           marketIds.map((id) => sql`${id}`),
-          sql`, `
+          sql`, `,
         )})`,
         or(
           // Past end date
@@ -68,13 +68,13 @@ async function runResolutionCheck() {
           // Within 24 hours of end date
           and(lte(markets.endDate, oneDayFromNow), gte(markets.endDate, now)),
           // Status still active but could be resolved
-          eq(markets.status, "active")
-        )
+          eq(markets.status, "active"),
+        ),
       ),
     });
 
     logger.info(
-      `Checking ${candidateMarkets.length} markets for resolution...`
+      `Checking ${candidateMarkets.length} markets for resolution...`,
     );
 
     // Track events we've already processed (for multi-outcome)
@@ -84,10 +84,12 @@ async function runResolutionCheck() {
     for (const market of candidateMarkets) {
       try {
         // Fetch current state from Gamma API
-        const gamma = await getMarketByConditionId(market.polymarketConditionId);
+        const gamma = await getMarketByConditionId(
+          market.polymarketConditionId,
+        );
         if (!gamma) {
           logger.warn(
-            `Could not fetch market ${market.polymarketConditionId} from Gamma`
+            `Could not fetch market ${market.polymarketConditionId} from Gamma`,
           );
           continue;
         }
@@ -114,7 +116,7 @@ async function runResolutionCheck() {
         const winningOutcome: "yes" | "no" = prices[0] === 1 ? "yes" : "no";
 
         logger.info(
-          `Market "${market.question}" resolved: ${winningOutcome} wins`
+          `Market "${market.question}" resolved: ${winningOutcome} wins`,
         );
 
         // Update market status
@@ -134,26 +136,21 @@ async function runResolutionCheck() {
           const result = await resolveEventBets(market.eventId);
           totalSettled += result.totalSettled;
           logger.info(
-            `Event ${market.eventId}: settled ${result.totalSettled} bets, winner market: ${result.winningMarketId}`
+            `Event ${market.eventId}: settled ${result.totalSettled} bets, winner market: ${result.winningMarketId}`,
           );
         } else if (!market.eventId) {
           const settled = await resolveMarketBets(market.id, winningOutcome);
           totalSettled += settled;
-          logger.info(
-            `Market ${market.id}: settled ${settled} bets`
-          );
+          logger.info(`Market ${market.id}: settled ${settled} bets`);
         }
       } catch (err) {
-        logger.error(
-          `Error checking resolution for market ${market.id}:`,
-          err
-        );
+        logger.error(`Error checking resolution for market ${market.id}:`, err);
       }
     }
 
     if (totalSettled > 0) {
       logger.info(
-        `Resolution check complete: settled ${totalSettled} bets across ${processedEvents.size} events`
+        `Resolution check complete: settled ${totalSettled} bets across ${processedEvents.size} events`,
       );
     }
   } catch (err) {
@@ -175,7 +172,7 @@ async function handleCancelledMarket(marketId: number) {
   if (pendingBets.length === 0) return;
 
   logger.info(
-    `Market ${marketId} cancelled/archived — refunding ${pendingBets.length} bets`
+    `Market ${marketId} cancelled/archived — refunding ${pendingBets.length} bets`,
   );
 
   const now = new Date();
@@ -208,11 +205,13 @@ async function handleCancelledMarket(marketId: number) {
         .where(
           and(
             eq(guildMembers.userId, bet.userId),
-            eq(guildMembers.guildId, bet.guildId)
-          )
+            eq(guildMembers.guildId, bet.guildId),
+          ),
         );
     });
   }
 
-  logger.info(`Refunded ${pendingBets.length} bets for cancelled market ${marketId}`);
+  logger.info(
+    `Refunded ${pendingBets.length} bets for cancelled market ${marketId}`,
+  );
 }

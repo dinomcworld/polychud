@@ -30,7 +30,7 @@ export function buildEventEmbed(event: EventCardData, showResolved = false) {
   const filtered = showResolved
     ? event.outcomes
     : event.outcomes.filter(
-        (o) => o.status !== "resolved" && o.status !== "closed"
+        (o) => o.status !== "resolved" && o.status !== "closed",
       );
 
   const display = filtered.length > 0 ? filtered : event.outcomes;
@@ -49,9 +49,7 @@ export function buildEventEmbed(event: EventCardData, showResolved = false) {
     : "https://polymarket.com";
 
   const rawTitle =
-    event.title.length > 256
-      ? event.title.slice(0, 253) + "..."
-      : event.title;
+    event.title.length > 256 ? `${event.title.slice(0, 253)}...` : event.title;
   const title = escapeMarkdown(rawTitle);
 
   const embed = new EmbedBuilder()
@@ -72,8 +70,11 @@ export function buildEventEmbed(event: EventCardData, showResolved = false) {
 
   // Use the latest end date among active sub-markets
   const activeEndDates = event.outcomes
-    .filter((o) => o.status === "active" && o.endDate)
-    .map((o) => o.endDate!.getTime());
+    .filter(
+      (o): o is typeof o & { endDate: Date } =>
+        o.status === "active" && o.endDate !== null,
+    )
+    .map((o) => o.endDate.getTime());
   const latestEndDate =
     activeEndDates.length > 0
       ? new Date(Math.max(...activeEndDates))
@@ -105,12 +106,12 @@ export function buildEventEmbed(event: EventCardData, showResolved = false) {
 
 export function buildEventSelectMenu(
   event: EventCardData,
-  showResolved = false
+  showResolved = false,
 ) {
   const filtered = showResolved
     ? event.outcomes
     : event.outcomes.filter(
-        (o) => o.status !== "resolved" && o.status !== "closed"
+        (o) => o.status !== "resolved" && o.status !== "closed",
       );
 
   const display = filtered.length > 0 ? filtered : event.outcomes;
@@ -123,7 +124,7 @@ export function buildEventSelectMenu(
       sorted.slice(0, 25).map((o) => {
         const pct = (o.yesPrice * 100).toFixed(1);
         const label =
-          o.label.length > 100 ? o.label.slice(0, 97) + "..." : o.label;
+          o.label.length > 100 ? `${o.label.slice(0, 97)}...` : o.label;
         const desc =
           o.status === "resolved" || o.status === "closed"
             ? "Resolved"
@@ -133,7 +134,7 @@ export function buildEventSelectMenu(
           description: desc,
           value: o.conditionId,
         };
-      })
+      }),
     );
 
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
@@ -143,7 +144,7 @@ export function buildEventButtons(
   polyEventId: string,
   slug: string | null,
   showResolved = false,
-  hasHiddenOutcomes = false
+  hasHiddenOutcomes = false,
 ) {
   const row = new ActionRowBuilder<ButtonBuilder>();
 
@@ -151,7 +152,7 @@ export function buildEventButtons(
     new ButtonBuilder()
       .setCustomId(`refresh_event_${polyEventId}`)
       .setLabel("Refresh")
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(ButtonStyle.Secondary),
   );
 
   if (hasHiddenOutcomes || showResolved) {
@@ -160,10 +161,10 @@ export function buildEventButtons(
         .setCustomId(
           showResolved
             ? `hide_resolved_${polyEventId}`
-            : `show_resolved_${polyEventId}`
+            : `show_resolved_${polyEventId}`,
         )
         .setLabel(showResolved ? "Hide Resolved" : "Show Resolved")
-        .setStyle(ButtonStyle.Secondary)
+        .setStyle(ButtonStyle.Secondary),
     );
   }
 
@@ -172,7 +173,7 @@ export function buildEventButtons(
       new ButtonBuilder()
         .setLabel("Polymarket")
         .setStyle(ButtonStyle.Link)
-        .setURL(`https://polymarket.com/event/${slug}`)
+        .setURL(`https://polymarket.com/event/${slug}`),
     );
   }
 
@@ -203,7 +204,7 @@ function formatVolume(vol: number): string {
 /** Extract a short outcome label from a sub-market question or groupItemTitle. */
 export function extractOutcomeLabel(
   question: string,
-  groupItemTitle?: string | null
+  groupItemTitle?: string | null,
 ): string {
   if (groupItemTitle) return groupItemTitle;
 
@@ -212,17 +213,15 @@ export function extractOutcomeLabel(
 
   // "Will X win/be/become...?" → X
   const willMatch = label.match(
-    /^Will\s+(?:the\s+)?(.+?)\s+(?:win|be |become |happen|occur|pass|reach|hit|exceed|go )/i
+    /^Will\s+(?:the\s+)?(.+?)\s+(?:win|be |become |happen|occur|pass|reach|hit|exceed|go )/i,
   );
-  if (willMatch) return willMatch[1]!;
+  if (willMatch?.[1]) return willMatch[1];
 
   // "X to win/be...?" → X
-  const toMatch = label.match(
-    /^(.+?)\s+to\s+(?:win|be |become )/i
-  );
-  if (toMatch) return toMatch[1]!;
+  const toMatch = label.match(/^(.+?)\s+to\s+(?:win|be |become )/i);
+  if (toMatch?.[1]) return toMatch[1];
 
   // Fallback: truncate
-  if (label.length > 40) label = label.slice(0, 37) + "...";
+  if (label.length > 40) label = `${label.slice(0, 37)}...`;
   return label;
 }

@@ -1,8 +1,8 @@
 import { eq, sql } from "drizzle-orm";
+import { config } from "../config.js";
 import { db } from "../db/index.js";
 import { bets, markets } from "../db/schema.js";
 import { getBatchPrices } from "../services/polymarket.js";
-import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
 
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -56,7 +56,7 @@ async function runPollCycle(): Promise<number> {
   const trackedMarkets = await db.query.markets.findMany({
     where: sql`${markets.id} IN (${sql.join(
       marketIds.map((id) => sql`${id}`),
-      sql`, `
+      sql`, `,
     )})`,
   });
 
@@ -66,7 +66,7 @@ async function runPollCycle(): Promise<number> {
   const interval = Math.floor(config.POLL_CYCLE_MS / trackedMarkets.length);
 
   logger.info(
-    `Polling ${trackedMarkets.length} markets, one every ${Math.round(interval / 1000)}s (${Math.round(config.POLL_CYCLE_MS / 60000)}min cycle)`
+    `Polling ${trackedMarkets.length} markets, one every ${Math.round(interval / 1000)}s (${Math.round(config.POLL_CYCLE_MS / 60000)}min cycle)`,
   );
 
   for (const market of trackedMarkets) {
@@ -88,9 +88,7 @@ async function runPollCycle(): Promise<number> {
           })
           .where(eq(markets.id, market.id));
 
-        logger.debug(
-          `Updated market ${market.id}: yes=${yesPrice.toFixed(4)}`
-        );
+        logger.debug(`Updated market ${market.id}: yes=${yesPrice.toFixed(4)}`);
       }
     } catch (err) {
       logger.error(`Price fetch failed for market ${market.id}:`, err);

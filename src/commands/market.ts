@@ -1,28 +1,28 @@
 import { SlashCommandBuilder } from "discord.js";
-import type { Command } from "./types.js";
+import type { GammaEvent, GammaMarket } from "../services/polymarket.js";
 import {
-  searchMarkets,
-  getTrendingMarkets,
-  getEventBySlug,
   getEventById,
+  getEventBySlug,
+  getTrendingMarkets,
+  searchMarkets,
 } from "../services/polymarket.js";
 import {
-  buildMarketEmbed,
+  buildEventButtons,
+  buildEventEmbed,
+  buildEventSelectMenu,
+  type EventCardData,
+  type EventOutcome,
+  extractOutcomeLabel,
+} from "../ui/eventCard.js";
+import {
   buildMarketButtons,
+  buildMarketEmbed,
   buildSearchResultsEmbed,
   buildSearchSelectMenu,
   type SearchResultItem,
 } from "../ui/marketCard.js";
-import {
-  buildEventEmbed,
-  buildEventSelectMenu,
-  buildEventButtons,
-  extractOutcomeLabel,
-  type EventCardData,
-  type EventOutcome,
-} from "../ui/eventCard.js";
 import { logger } from "../utils/logger.js";
-import type { GammaEvent, GammaMarket } from "../services/polymarket.js";
+import type { Command } from "./types.js";
 
 export const marketCommand: Command = {
   data: new SlashCommandBuilder()
@@ -33,16 +33,11 @@ export const marketCommand: Command = {
         .setName("search")
         .setDescription("Search for a market")
         .addStringOption((opt) =>
-          opt
-            .setName("query")
-            .setDescription("Search query")
-            .setRequired(true)
-        )
+          opt.setName("query").setDescription("Search query").setRequired(true),
+        ),
     )
     .addSubcommand((sub) =>
-      sub
-        .setName("trending")
-        .setDescription("Show trending markets by volume")
+      sub.setName("trending").setDescription("Show trending markets by volume"),
     )
     .addSubcommand((sub) =>
       sub
@@ -52,10 +47,10 @@ export const marketCommand: Command = {
           opt
             .setName("input")
             .setDescription(
-              "Polymarket URL (e.g. polymarket.com/event/...) or market ID"
+              "Polymarket URL (e.g. polymarket.com/event/...) or market ID",
             )
-            .setRequired(true)
-        )
+            .setRequired(true),
+        ),
     ),
 
   async execute(interaction) {
@@ -72,7 +67,7 @@ export const marketCommand: Command = {
 };
 
 async function handleSearch(
-  interaction: import("discord.js").ChatInputCommandInteraction
+  interaction: import("discord.js").ChatInputCommandInteraction,
 ) {
   await interaction.deferReply();
   const query = interaction.options.getString("query", true);
@@ -89,12 +84,13 @@ async function handleSearch(
 
     // If single result, show card directly (no DB write)
     if (gammaEvents.length === 1) {
-      const event = gammaEvents[0]!;
+      const [event] = gammaEvents;
+      if (!event) return;
 
       if (event.markets.length > 1) {
         const eventData = buildEventCardFromGamma(event);
         const hasHidden = eventData.outcomes.some(
-          (o) => o.status === "resolved" || o.status === "closed"
+          (o) => o.status === "resolved" || o.status === "closed",
         );
         const embed = buildEventEmbed(eventData);
         const selectMenu = buildEventSelectMenu(eventData);
@@ -102,21 +98,22 @@ async function handleSearch(
           event.id,
           event.slug,
           false,
-          hasHidden
+          hasHidden,
         );
         await interaction.editReply({
           embeds: [embed],
           components: [selectMenu, buttons],
         });
       } else if (event.markets.length === 1) {
-        const m = event.markets[0]!;
+        const [m] = event.markets;
+        if (!m) return;
         const cardData = gammaMarketToCardData(m, event.slug);
         const embed = buildMarketEmbed(cardData);
         const buttons = buildMarketButtons(
           m.conditionId,
           m.slug,
           m.active && !m.closed,
-          event.slug
+          event.slug,
         );
         await interaction.editReply({
           embeds: [embed],
@@ -137,18 +134,20 @@ async function handleSearch(
 
       if (event.markets.length > 1) {
         const activeMarkets = event.markets.filter(
-          (m) => m.active && !m.closed
+          (m) => m.active && !m.closed,
         );
         const marketsToCheck =
           activeMarkets.length > 0 ? activeMarkets : event.markets;
+        const [firstMarket] = marketsToCheck;
+        if (!firstMarket) continue;
         const frontrunner = marketsToCheck.reduce((best, m) => {
           const price = m.outcomePrices[0] ?? 0;
           return price > (best.outcomePrices[0] ?? 0) ? m : best;
-        }, marketsToCheck[0]!);
+        }, firstMarket);
 
         const frontrunnerLabel = extractOutcomeLabel(
           frontrunner.question,
-          frontrunner.groupItemTitle
+          frontrunner.groupItemTitle,
         );
         const pct = ((frontrunner.outcomePrices[0] ?? 0.5) * 100).toFixed(0);
         searchItems.push({
@@ -159,7 +158,8 @@ async function handleSearch(
           status: eventStatus,
         });
       } else if (event.markets.length === 1) {
-        const m = event.markets[0]!;
+        const [m] = event.markets;
+        if (!m) continue;
         searchItems.push({
           conditionId: m.conditionId,
           question: m.question,
@@ -185,7 +185,7 @@ async function handleSearch(
 }
 
 async function handleTrending(
-  interaction: import("discord.js").ChatInputCommandInteraction
+  interaction: import("discord.js").ChatInputCommandInteraction,
 ) {
   await interaction.deferReply();
 
@@ -203,18 +203,20 @@ async function handleTrending(
 
       if (event.markets.length > 1) {
         const activeMarkets = event.markets.filter(
-          (m) => m.active && !m.closed
+          (m) => m.active && !m.closed,
         );
         const marketsToCheck =
           activeMarkets.length > 0 ? activeMarkets : event.markets;
+        const [firstMarket] = marketsToCheck;
+        if (!firstMarket) continue;
         const frontrunner = marketsToCheck.reduce((best, m) => {
           const price = m.outcomePrices[0] ?? 0;
           return price > (best.outcomePrices[0] ?? 0) ? m : best;
-        }, marketsToCheck[0]!);
+        }, firstMarket);
 
         const frontrunnerLabel = extractOutcomeLabel(
           frontrunner.question,
-          frontrunner.groupItemTitle
+          frontrunner.groupItemTitle,
         );
         const pct = ((frontrunner.outcomePrices[0] ?? 0.5) * 100).toFixed(0);
         searchItems.push({
@@ -260,18 +262,20 @@ async function handleTrending(
  * Parse input: accepts Polymarket URLs or numeric DB IDs.
  * URLs like: polymarket.com/event/some-slug or https://polymarket.com/event/some-slug
  */
-function parseViewInput(input: string): { type: "slug"; slug: string } | { type: "id"; id: number } | null {
+function parseViewInput(
+  input: string,
+): { type: "slug"; slug: string } | { type: "id"; id: number } | null {
   // Try to extract slug from URL
   const urlMatch = input.match(
-    /(?:https?:\/\/)?(?:www\.)?polymarket\.com\/event\/([a-z0-9-]+)/i
+    /(?:https?:\/\/)?(?:www\.)?polymarket\.com\/event\/([a-z0-9-]+)/i,
   );
-  if (urlMatch) {
-    return { type: "slug", slug: urlMatch[1]! };
+  if (urlMatch?.[1]) {
+    return { type: "slug", slug: urlMatch[1] };
   }
 
   // Try as numeric ID
   const id = parseInt(input, 10);
-  if (!isNaN(id) && id > 0) {
+  if (!Number.isNaN(id) && id > 0) {
     return { type: "id", id };
   }
 
@@ -284,7 +288,7 @@ function parseViewInput(input: string): { type: "slug"; slug: string } | { type:
 }
 
 async function handleView(
-  interaction: import("discord.js").ChatInputCommandInteraction
+  interaction: import("discord.js").ChatInputCommandInteraction,
 ) {
   await interaction.deferReply();
   const input = interaction.options.getString("input", true).trim();
@@ -314,7 +318,7 @@ async function handleView(
 
 async function handleViewBySlug(
   interaction: import("discord.js").ChatInputCommandInteraction,
-  slug: string
+  slug: string,
 ) {
   // Fetch from Gamma API (no DB write)
   const gammaEvent = await getEventBySlug(slug);
@@ -329,7 +333,7 @@ async function handleViewBySlug(
   if (gammaEvent.markets.length > 1) {
     const eventData = buildEventCardFromGamma(gammaEvent);
     const hasHidden = eventData.outcomes.some(
-      (o) => o.status === "resolved" || o.status === "closed"
+      (o) => o.status === "resolved" || o.status === "closed",
     );
     const embed = buildEventEmbed(eventData);
     const selectMenu = buildEventSelectMenu(eventData);
@@ -337,21 +341,22 @@ async function handleViewBySlug(
       gammaEvent.id,
       gammaEvent.slug,
       false,
-      hasHidden
+      hasHidden,
     );
     await interaction.editReply({
       embeds: [embed],
       components: [selectMenu, buttons],
     });
   } else if (gammaEvent.markets.length === 1) {
-    const m = gammaEvent.markets[0]!;
+    const [m] = gammaEvent.markets;
+    if (!m) return;
     const cardData = gammaMarketToCardData(m, gammaEvent.slug);
     const embed = buildMarketEmbed(cardData);
     const buttons = buildMarketButtons(
       m.conditionId,
       m.slug,
       m.active && !m.closed,
-      gammaEvent.slug
+      gammaEvent.slug,
     );
     await interaction.editReply({
       embeds: [embed],
@@ -366,7 +371,7 @@ async function handleViewBySlug(
 
 async function handleViewById(
   interaction: import("discord.js").ChatInputCommandInteraction,
-  polyEventId: number
+  polyEventId: number,
 ) {
   const gammaEvent = await getEventById(String(polyEventId));
   if (!gammaEvent) {
@@ -379,7 +384,7 @@ async function handleViewById(
   if (gammaEvent.markets.length > 1) {
     const eventData = buildEventCardFromGamma(gammaEvent);
     const hasHidden = eventData.outcomes.some(
-      (o) => o.status === "resolved" || o.status === "closed"
+      (o) => o.status === "resolved" || o.status === "closed",
     );
     const embed = buildEventEmbed(eventData);
     const selectMenu = buildEventSelectMenu(eventData);
@@ -387,21 +392,22 @@ async function handleViewById(
       gammaEvent.id,
       gammaEvent.slug,
       false,
-      hasHidden
+      hasHidden,
     );
     await interaction.editReply({
       embeds: [embed],
       components: [selectMenu, buttons],
     });
   } else if (gammaEvent.markets.length === 1) {
-    const m = gammaEvent.markets[0]!;
+    const [m] = gammaEvent.markets;
+    if (!m) return;
     const cardData = gammaMarketToCardData(m, gammaEvent.slug);
     const embed = buildMarketEmbed(cardData);
     const buttons = buildMarketButtons(
       m.conditionId,
       m.slug,
       m.active && !m.closed,
-      gammaEvent.slug
+      gammaEvent.slug,
     );
     await interaction.editReply({
       embeds: [embed],
@@ -417,10 +423,7 @@ async function handleViewById(
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build card data from a Gamma API market (no DB). */
-function gammaMarketToCardData(
-  gamma: GammaMarket,
-  eventSlug?: string | null
-) {
+function gammaMarketToCardData(gamma: GammaMarket, eventSlug?: string | null) {
   const yesPrice = gamma.outcomePrices[0] ?? 0.5;
   return {
     conditionId: gamma.conditionId,
@@ -461,4 +464,4 @@ function buildEventCardFromGamma(gamma: GammaEvent): EventCardData {
   };
 }
 
-export { gammaMarketToCardData, buildEventCardFromGamma };
+export { buildEventCardFromGamma, gammaMarketToCardData };

@@ -25,12 +25,13 @@ export async function upsertEvent(gamma: GammaEvent) {
     .onConflictDoUpdate({ target: events.polymarketEventId, set: values })
     .returning({ id: events.id });
 
-  return created!.id;
+  if (!created) throw new Error(`Failed to upsert event ${gamma.id}`);
+  return created.id;
 }
 
 export async function upsertMarket(
   gamma: GammaMarket,
-  eventDbId?: number | null
+  eventDbId?: number | null,
 ) {
   const yesPrice = gamma.outcomePrices[0] ?? 0.5;
   const noPrice = gamma.outcomePrices[1] ?? 1 - yesPrice;
@@ -68,7 +69,8 @@ export async function upsertMarket(
     })
     .returning({ id: markets.id });
 
-  return created!.id;
+  if (!created) throw new Error(`Failed to upsert market ${gamma.conditionId}`);
+  return created.id;
 }
 
 /** Upsert a full event with all its markets. Returns map of conditionId -> dbId. */
@@ -88,8 +90,9 @@ export async function upsertEventWithMarkets(gamma: GammaEvent) {
 export async function upsertStandaloneMarket(gamma: GammaMarket) {
   let eventDbId: number | null = null;
 
-  if (gamma.events && gamma.events.length > 0) {
-    eventDbId = await upsertEvent(gamma.events[0]!);
+  const parentEvent = gamma.events?.[0];
+  if (parentEvent) {
+    eventDbId = await upsertEvent(parentEvent);
   }
 
   const dbId = await upsertMarket(gamma, eventDbId);

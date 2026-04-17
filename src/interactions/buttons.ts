@@ -1,36 +1,36 @@
 import {
   ActionRowBuilder,
   ButtonBuilder,
+  type ButtonInteraction,
   ButtonStyle,
   EmbedBuilder,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  type ButtonInteraction,
 } from "discord.js";
-import { logger } from "../utils/logger.js";
 import {
-  getCachedMarket,
-  getMarketByConditionId,
-  getEventById,
-  getMidpointPrice,
-} from "../services/polymarket.js";
-import { upsertStandaloneMarket } from "../services/markets.js";
-import { placeBet, getBetById } from "../services/betting.js";
-import { closeBet } from "../services/betting.js";
-import { ensureUser } from "../services/users.js";
-import { buildMarketEmbed, buildMarketButtons } from "../ui/marketCard.js";
-import {
-  buildEventEmbed,
-  buildEventSelectMenu,
-  buildEventButtons,
-  buildBackToEventButton,
-} from "../ui/eventCard.js";
-import {
-  gammaMarketToCardData,
   buildEventCardFromGamma,
+  gammaMarketToCardData,
 } from "../commands/market.js";
 import { config } from "../config.js";
+import { closeBet, getBetById, placeBet } from "../services/betting.js";
+import { upsertStandaloneMarket } from "../services/markets.js";
+import {
+  getCachedMarket,
+  getEventById,
+  getMarketByConditionId,
+  getMidpointPrice,
+} from "../services/polymarket.js";
+import { ensureUser } from "../services/users.js";
+import {
+  buildBackToEventButton,
+  buildEventButtons,
+  buildEventEmbed,
+  buildEventSelectMenu,
+} from "../ui/eventCard.js";
+import { buildMarketButtons, buildMarketEmbed } from "../ui/marketCard.js";
+import { requireGuildId } from "../utils/guards.js";
+import { logger } from "../utils/logger.js";
 
 export async function handleButton(interaction: ButtonInteraction) {
   const id = interaction.customId;
@@ -47,7 +47,10 @@ export async function handleButton(interaction: ButtonInteraction) {
     await handleConfirm(interaction);
   } else if (id.startsWith("close_bet_")) {
     await handleCloseBet(interaction);
-  } else if (id.startsWith("show_resolved_") || id.startsWith("hide_resolved_")) {
+  } else if (
+    id.startsWith("show_resolved_") ||
+    id.startsWith("hide_resolved_")
+  ) {
     await handleToggleResolved(interaction);
   } else if (id.startsWith("back_event_")) {
     await handleBackToEvent(interaction);
@@ -66,10 +69,12 @@ export async function handleButton(interaction: ButtonInteraction) {
 }
 
 async function handleBetButton(interaction: ButtonInteraction) {
-  const parts = interaction.customId.split("_");
   // bet_yes_{conditionId} or bet_no_{conditionId}
-  const outcome = parts[1] as "yes" | "no";
-  const conditionId = parts[2]!;
+  const [, outcome, conditionId] = interaction.customId.split("_") as [
+    string,
+    "yes" | "no",
+    string,
+  ];
 
   const modal = new ModalBuilder()
     .setCustomId(`betmodal_${conditionId}_${outcome}`)
@@ -85,7 +90,7 @@ async function handleBetButton(interaction: ButtonInteraction) {
     .setMaxLength(10);
 
   modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(amountInput)
+    new ActionRowBuilder<TextInputBuilder>().addComponents(amountInput),
   );
 
   await interaction.showModal(modal);
@@ -104,7 +109,9 @@ async function handleRefresh(interaction: ButtonInteraction) {
     if (polyEventId) {
       const gammaEvent = await getEventById(polyEventId);
       if (gammaEvent) {
-        const gamma = gammaEvent.markets.find((m) => m.conditionId === conditionId);
+        const gamma = gammaEvent.markets.find(
+          (m) => m.conditionId === conditionId,
+        );
         if (gamma) {
           const cardData = gammaMarketToCardData(gamma, gammaEvent.slug);
           const embed = buildMarketEmbed(cardData);
@@ -113,7 +120,7 @@ async function handleRefresh(interaction: ButtonInteraction) {
             gamma.slug,
             gamma.active && !gamma.closed,
             gammaEvent.slug,
-            gammaEvent.id
+            gammaEvent.id,
           );
           buttons.addComponents(buildBackToEventButton(gammaEvent.id));
           await interaction.editReply({
@@ -144,7 +151,7 @@ async function handleRefresh(interaction: ButtonInteraction) {
       gamma.slug,
       gamma.active && !gamma.closed,
       eventSlug,
-      eventId
+      eventId,
     );
     await interaction.editReply({
       embeds: [embed],
@@ -176,11 +183,16 @@ async function handleRefreshEvent(interaction: ButtonInteraction) {
 
     const eventData = buildEventCardFromGamma(gammaEvent);
     const hasHidden = eventData.outcomes.some(
-      (o) => o.status === "resolved" || o.status === "closed"
+      (o) => o.status === "resolved" || o.status === "closed",
     );
     const embed = buildEventEmbed(eventData);
     const selectMenu = buildEventSelectMenu(eventData);
-    const buttons = buildEventButtons(gammaEvent.id, gammaEvent.slug, false, hasHidden);
+    const buttons = buildEventButtons(
+      gammaEvent.id,
+      gammaEvent.slug,
+      false,
+      hasHidden,
+    );
     await interaction.editReply({
       embeds: [embed],
       components: [selectMenu, buttons],
@@ -211,11 +223,16 @@ async function handleBackToEvent(interaction: ButtonInteraction) {
 
     const eventData = buildEventCardFromGamma(gammaEvent);
     const hasHidden = eventData.outcomes.some(
-      (o) => o.status === "resolved" || o.status === "closed"
+      (o) => o.status === "resolved" || o.status === "closed",
     );
     const embed = buildEventEmbed(eventData);
     const selectMenu = buildEventSelectMenu(eventData);
-    const buttons = buildEventButtons(gammaEvent.id, gammaEvent.slug, false, hasHidden);
+    const buttons = buildEventButtons(
+      gammaEvent.id,
+      gammaEvent.slug,
+      false,
+      hasHidden,
+    );
     await interaction.editReply({
       embeds: [embed],
       components: [selectMenu, buttons],
@@ -233,10 +250,10 @@ async function handleConfirm(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
 
   // confirm_{conditionId}_{outcome}_{amount}
-  const parts = interaction.customId.split("_");
-  const conditionId = parts[1]!;
-  const outcome = parts[2] as "yes" | "no";
-  const amount = parseInt(parts[3]!, 10);
+  const [, conditionId, outcome, amountStr] = interaction.customId.split(
+    "_",
+  ) as [string, string, "yes" | "no", string];
+  const amount = parseInt(amountStr, 10);
 
   // Fetch market from Gamma to upsert
   let gamma = getCachedMarket(conditionId);
@@ -267,12 +284,15 @@ async function handleConfirm(interaction: ButtonInteraction) {
     return;
   }
 
+  const guildId = await requireGuildId(interaction);
+  if (!guildId) return;
+
   const result = await placeBet(
     interaction.user.id,
     marketDbId,
-    interaction.guildId!,
+    guildId,
     outcome,
-    amount
+    amount,
   );
 
   if (!result.success) {
@@ -294,7 +314,7 @@ async function handleConfirm(interaction: ButtonInteraction) {
         `**Stake:** ${amount.toLocaleString()} pts`,
         `**Potential payout:** ${result.potentialPayout.toLocaleString()} pts`,
         `**New balance:** ${result.newBalance.toLocaleString()} pts`,
-      ].join("\n")
+      ].join("\n"),
     )
     .setFooter({ text: `Bet #${result.betId}` })
     .setTimestamp();
@@ -309,7 +329,12 @@ async function handleCloseBet(interaction: ButtonInteraction) {
   await interaction.deferReply({ ephemeral: true });
 
   // close_bet_{betId}
-  const betId = parseInt(interaction.customId.split("_")[2]!, 10);
+  const betIdStr = interaction.customId.split("_")[2];
+  if (!betIdStr) return;
+  const betId = parseInt(betIdStr, 10);
+
+  const guildId = await requireGuildId(interaction);
+  if (!guildId) return;
 
   try {
     const bet = await getBetById(betId);
@@ -319,7 +344,7 @@ async function handleCloseBet(interaction: ButtonInteraction) {
     }
 
     // Verify ownership
-    const { user } = await ensureUser(interaction.user.id, interaction.guildId!);
+    const { user } = await ensureUser(interaction.user.id, guildId);
     if (bet.userId !== user.id) {
       await interaction.editReply({ content: "This isn't your bet." });
       return;
@@ -365,7 +390,7 @@ async function handleCloseBet(interaction: ButtonInteraction) {
           `**Staked:** ${bet.amount.toLocaleString()} pts`,
           `**Return:** ${cashOutAmount.toLocaleString()} pts (${profit >= 0 ? "+" : ""}${profit.toLocaleString()} profit)`,
           `**Price \u0394:** ${priceDelta >= 0 ? "+" : ""}${(priceDelta * 100).toFixed(1)}%`,
-        ].join("\n")
+        ].join("\n"),
       )
       .setTimestamp();
 
@@ -377,7 +402,7 @@ async function handleCloseBet(interaction: ButtonInteraction) {
       new ButtonBuilder()
         .setCustomId("cancel_close")
         .setLabel("Cancel")
-        .setStyle(ButtonStyle.Secondary)
+        .setStyle(ButtonStyle.Secondary),
     );
 
     await interaction.editReply({
@@ -397,8 +422,14 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
 
   // confirm_close_{betId}_{timestamp}
   const parts = interaction.customId.split("_");
-  const betId = parseInt(parts[2]!, 10);
-  const previewTimestamp = parseInt(parts[3]!, 10);
+  const betIdStr = parts[2];
+  const timestampStr = parts[3];
+  if (!betIdStr || !timestampStr) return;
+  const betId = parseInt(betIdStr, 10);
+  const previewTimestamp = parseInt(timestampStr, 10);
+
+  const guildId = await requireGuildId(interaction);
+  if (!guildId) return;
 
   // Check price staleness
   const age = Date.now() - previewTimestamp;
@@ -406,7 +437,7 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
     // Re-show confirmation with fresh price instead of executing
     try {
       const bet = await getBetById(betId);
-      if (!bet || !bet.market) {
+      if (!bet?.market) {
         await interaction.editReply({
           content: "Bet or market not found.",
           embeds: [],
@@ -429,7 +460,7 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
       const currentPrice = await getMidpointPrice(tokenId);
       const entryPrice = parseFloat(bet.oddsAtBet);
       const cashOutAmount = Math.floor(
-        bet.amount * (currentPrice / entryPrice)
+        bet.amount * (currentPrice / entryPrice),
       );
       const profit = cashOutAmount - bet.amount;
       const priceDelta = currentPrice - entryPrice;
@@ -447,7 +478,7 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
             `**Staked:** ${bet.amount.toLocaleString()} pts`,
             `**Return:** ${cashOutAmount.toLocaleString()} pts (${profit >= 0 ? "+" : ""}${profit.toLocaleString()} profit)`,
             `**Price \u0394:** ${priceDelta >= 0 ? "+" : ""}${(priceDelta * 100).toFixed(1)}%`,
-          ].join("\n")
+          ].join("\n"),
         )
         .setFooter({ text: "Price was stale — refreshed" })
         .setTimestamp();
@@ -460,7 +491,7 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
         new ButtonBuilder()
           .setCustomId("cancel_close")
           .setLabel("Cancel")
-          .setStyle(ButtonStyle.Secondary)
+          .setStyle(ButtonStyle.Secondary),
       );
 
       await interaction.editReply({ embeds: [embed], components: [row] });
@@ -477,7 +508,7 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
   }
 
   // Execute the close
-  const result = await closeBet(betId, interaction.user.id, interaction.guildId!);
+  const result = await closeBet(betId, interaction.user.id, guildId);
 
   if (!result.success) {
     await interaction.editReply({
@@ -498,7 +529,7 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
         `**Staked:** ${result.staked.toLocaleString()} pts`,
         `**Returned:** ${result.cashOut.toLocaleString()} pts (${result.profit >= 0 ? "+" : ""}${result.profit.toLocaleString()})`,
         `**New balance:** ${result.newBalance.toLocaleString()} pts`,
-      ].join("\n")
+      ].join("\n"),
     )
     .setFooter({ text: `Bet #${betId}` })
     .setTimestamp();
@@ -513,7 +544,8 @@ async function handleToggleResolved(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   const showResolved = interaction.customId.startsWith("show_resolved_");
   // show_resolved_{polyEventId} or hide_resolved_{polyEventId}
-  const polyEventId = interaction.customId.split("_")[2]!;
+  const polyEventId = interaction.customId.split("_")[2];
+  if (!polyEventId) return;
 
   try {
     const gammaEvent = await getEventById(polyEventId);
@@ -527,7 +559,7 @@ async function handleToggleResolved(interaction: ButtonInteraction) {
 
     const eventData = buildEventCardFromGamma(gammaEvent);
     const hasHidden = eventData.outcomes.some(
-      (o) => o.status === "resolved" || o.status === "closed"
+      (o) => o.status === "resolved" || o.status === "closed",
     );
     const embed = buildEventEmbed(eventData, showResolved);
     const selectMenu = buildEventSelectMenu(eventData, showResolved);
@@ -535,7 +567,7 @@ async function handleToggleResolved(interaction: ButtonInteraction) {
       gammaEvent.id,
       gammaEvent.slug,
       showResolved,
-      hasHidden
+      hasHidden,
     );
     await interaction.editReply({
       embeds: [embed],

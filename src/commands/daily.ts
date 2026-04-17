@@ -1,6 +1,7 @@
 import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
-import type { Command } from "./types.js";
 import { claimDaily } from "../services/users.js";
+import { requireGuildId } from "../utils/guards.js";
+import type { Command } from "./types.js";
 
 export const dailyCommand: Command = {
   data: new SlashCommandBuilder()
@@ -10,17 +11,17 @@ export const dailyCommand: Command = {
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
-    const result = await claimDaily(
-      interaction.user.id,
-      interaction.guildId!
-    );
+    const guildId = await requireGuildId(interaction);
+    if (!guildId) return;
+
+    const result = await claimDaily(interaction.user.id, guildId);
 
     if (result.claimed) {
       const embed = new EmbedBuilder()
         .setTitle("Daily Bonus Claimed!")
         .setColor(0x00cc66)
         .setDescription(
-          `You received **${result.bonus}** points!\n\nNew balance: **${result.balance.toLocaleString()}** points`
+          `You received **${result.bonus}** points!\n\nNew balance: **${result.balance.toLocaleString()}** points`,
         )
         .setTimestamp();
 
@@ -31,7 +32,7 @@ export const dailyCommand: Command = {
         .setTitle("Already Claimed")
         .setColor(0xff6600)
         .setDescription(
-          `You already claimed your daily bonus.\n\nNext claim: <t:${nextClaimUnix}:R>\n\nCurrent balance: **${result.balance.toLocaleString()}** points`
+          `You already claimed your daily bonus.\n\nNext claim: <t:${nextClaimUnix}:R>\n\nCurrent balance: **${result.balance.toLocaleString()}** points`,
         )
         .setTimestamp();
 

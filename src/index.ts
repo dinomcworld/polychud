@@ -1,26 +1,29 @@
-import { ActivityType, Client, Collection, Events, GatewayIntentBits } from "discord.js";
-import { config } from "./config.js";
-import { logger } from "./utils/logger.js";
-import { runMigrations } from "./db/migrate.js";
-
-import type { Command } from "./commands/types.js";
-
+import {
+  ActivityType,
+  Client,
+  Collection,
+  Events,
+  GatewayIntentBits,
+} from "discord.js";
+import { betCommand } from "./commands/bet.js";
 // Import commands
 import { dailyCommand } from "./commands/daily.js";
-import { portfolioCommand } from "./commands/portfolio.js";
 import { helpCommand } from "./commands/help.js";
-import { marketCommand } from "./commands/market.js";
-import { betCommand } from "./commands/bet.js";
 import { leaderboardCommand } from "./commands/leaderboard.js";
-
+import { marketCommand } from "./commands/market.js";
+import { portfolioCommand } from "./commands/portfolio.js";
+import type { Command } from "./commands/types.js";
+import { config } from "./config.js";
+import { runMigrations } from "./db/migrate.js";
 // Import interaction handlers
 import { handleButton } from "./interactions/buttons.js";
-import { handleSelectMenu } from "./interactions/selects.js";
 import { handleModal } from "./interactions/modals.js";
+import { handleSelectMenu } from "./interactions/selects.js";
+import { startPoller, stopPoller } from "./jobs/poller.js";
 
 // Import jobs
 import { startResolver, stopResolver } from "./jobs/resolver.js";
-import { startPoller, stopPoller } from "./jobs/poller.js";
+import { logger } from "./utils/logger.js";
 
 // Build command collection
 const commands = new Collection<string, Command>();

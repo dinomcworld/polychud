@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
-import { db } from "../db/index.js";
-import { users, guildMembers, guildSettings } from "../db/schema.js";
 import { config } from "../config.js";
+import { db } from "../db/index.js";
+import { guildMembers, guildSettings, users } from "../db/schema.js";
 
 export async function ensureGuildSettings(guildId: string) {
   const existing = await db.query.guildSettings.findFirst({
@@ -24,9 +24,12 @@ export async function ensureGuildSettings(guildId: string) {
 
   // Race condition: another request may have inserted first
   if (!created) {
-    return (await db.query.guildSettings.findFirst({
+    const found = await db.query.guildSettings.findFirst({
       where: eq(guildSettings.guildId, guildId),
-    }))!;
+    });
+    if (!found)
+      throw new Error(`Failed to create guild settings for ${guildId}`);
+    return found;
   }
 
   return created;
@@ -47,9 +50,11 @@ async function ensureUserRow(discordId: string) {
     .returning();
 
   if (!created) {
-    return (await db.query.users.findFirst({
+    const found = await db.query.users.findFirst({
       where: eq(users.discordId, discordId),
-    }))!;
+    });
+    if (!found) throw new Error(`Failed to create user ${discordId}`);
+    return found;
   }
 
   return created;
@@ -60,7 +65,7 @@ async function ensureMemberRow(userId: number, guildId: string) {
   const existing = await db.query.guildMembers.findFirst({
     where: and(
       eq(guildMembers.userId, userId),
-      eq(guildMembers.guildId, guildId)
+      eq(guildMembers.guildId, guildId),
     ),
   });
 
@@ -79,12 +84,14 @@ async function ensureMemberRow(userId: number, guildId: string) {
     .returning();
 
   if (!created) {
-    return (await db.query.guildMembers.findFirst({
+    const found = await db.query.guildMembers.findFirst({
       where: and(
         eq(guildMembers.userId, userId),
-        eq(guildMembers.guildId, guildId)
+        eq(guildMembers.guildId, guildId),
       ),
-    }))!;
+    });
+    if (!found) throw new Error(`Failed to create guild member for ${guildId}`);
+    return found;
   }
 
   return created;
@@ -111,9 +118,13 @@ export async function claimDaily(discordId: string, guildId: string) {
 
     if (timeSinceClaim < twentyFourHours) {
       const nextClaim = new Date(
-        member.lastDailyClaim.getTime() + twentyFourHours
+        member.lastDailyClaim.getTime() + twentyFourHours,
       );
-      return { claimed: false as const, nextClaim, balance: member.pointsBalance };
+      return {
+        claimed: false as const,
+        nextClaim,
+        balance: member.pointsBalance,
+      };
     }
   }
 
@@ -144,7 +155,7 @@ export async function getUserStats(discordId: string, guildId: string) {
       andOp(
         eqOp(bets.userId, user.id),
         eqOp(bets.guildId, guildId),
-        eqOp(bets.status, "pending")
+        eqOp(bets.status, "pending"),
       ),
   });
 

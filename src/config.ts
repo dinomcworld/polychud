@@ -6,7 +6,9 @@ const envSchema = z.object({
   DISCORD_TOKEN: z.string().min(1, "DISCORD_TOKEN is required"),
   DISCORD_CLIENT_ID: z.string().min(1, "DISCORD_CLIENT_ID is required"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
 
   // Polymarket
   POLYMARKET_GAMMA_URL: z.url().default("https://gamma-api.polymarket.com"),
@@ -16,7 +18,11 @@ const envSchema = z.object({
   POLL_CYCLE_MS: z.coerce.number().int().positive().default(3_600_000), // 60min
   RESOLUTION_CHECK_CRON: z.string().default("*/30 * * * *"),
   ON_DEMAND_CACHE_TTL_MS: z.coerce.number().int().positive().default(60_000),
-  CLOSE_BET_PRICE_MAX_AGE_MS: z.coerce.number().int().positive().default(30_000),
+  CLOSE_BET_PRICE_MAX_AGE_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30_000),
 
   // Points economy
   DEFAULT_STARTING_POINTS: z.coerce.number().int().positive().default(1000),

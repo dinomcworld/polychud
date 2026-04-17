@@ -1,24 +1,23 @@
 import type { StringSelectMenuInteraction } from "discord.js";
-import { logger } from "../utils/logger.js";
+import {
+  buildEventCardFromGamma,
+  gammaMarketToCardData,
+} from "../commands/market.js";
 import {
   getCachedMarket,
   getMarketByConditionId,
-  getEventById,
 } from "../services/polymarket.js";
-import { buildMarketEmbed, buildMarketButtons } from "../ui/marketCard.js";
 import {
-  gammaMarketToCardData,
-  buildEventCardFromGamma,
-} from "../commands/market.js";
-import {
+  buildBackToEventButton,
+  buildEventButtons,
   buildEventEmbed,
   buildEventSelectMenu,
-  buildEventButtons,
-  buildBackToEventButton,
 } from "../ui/eventCard.js";
+import { buildMarketButtons, buildMarketEmbed } from "../ui/marketCard.js";
+import { logger } from "../utils/logger.js";
 
 export async function handleSelectMenu(
-  interaction: StringSelectMenuInteraction
+  interaction: StringSelectMenuInteraction,
 ) {
   const id = interaction.customId;
 
@@ -37,7 +36,8 @@ export async function handleSelectMenu(
 async function handleMarketSelect(interaction: StringSelectMenuInteraction) {
   await interaction.deferUpdate();
 
-  const conditionId = interaction.values[0]!;
+  const conditionId = interaction.values[0];
+  if (!conditionId) return;
 
   try {
     // Look up from in-memory cache first, then fetch from API
@@ -48,7 +48,8 @@ async function handleMarketSelect(interaction: StringSelectMenuInteraction) {
 
     if (!gamma) {
       await interaction.followUp({
-        content: "Market not found. The cache may have expired — try searching again.",
+        content:
+          "Market not found. The cache may have expired — try searching again.",
         ephemeral: true,
       });
       return;
@@ -59,7 +60,7 @@ async function handleMarketSelect(interaction: StringSelectMenuInteraction) {
     if (parentEvent && parentEvent.markets.length > 1) {
       const eventData = buildEventCardFromGamma(parentEvent);
       const hasHidden = eventData.outcomes.some(
-        (o) => o.status === "resolved" || o.status === "closed"
+        (o) => o.status === "resolved" || o.status === "closed",
       );
       const embed = buildEventEmbed(eventData);
       const selectMenu = buildEventSelectMenu(eventData);
@@ -67,7 +68,7 @@ async function handleMarketSelect(interaction: StringSelectMenuInteraction) {
         parentEvent.id,
         parentEvent.slug,
         false,
-        hasHidden
+        hasHidden,
       );
       await interaction.editReply({
         embeds: [embed],
@@ -84,7 +85,7 @@ async function handleMarketSelect(interaction: StringSelectMenuInteraction) {
       gamma.conditionId,
       gamma.slug,
       gamma.active && !gamma.closed,
-      eventSlug
+      eventSlug,
     );
 
     await interaction.editReply({
@@ -104,8 +105,9 @@ async function handleEventSelect(interaction: StringSelectMenuInteraction) {
   await interaction.deferUpdate();
 
   // event_select_{polyEventId}
-  const polyEventId = interaction.customId.split("_")[2]!;
-  const conditionId = interaction.values[0]!;
+  const polyEventId = interaction.customId.split("_")[2];
+  const conditionId = interaction.values[0];
+  if (!polyEventId || !conditionId) return;
 
   try {
     // Fetch market from cache or API
@@ -130,7 +132,7 @@ async function handleEventSelect(interaction: StringSelectMenuInteraction) {
       gamma.slug,
       gamma.active && !gamma.closed,
       eventSlug,
-      polyEventId
+      polyEventId,
     );
     buttons.addComponents(buildBackToEventButton(polyEventId));
 

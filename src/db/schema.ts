@@ -1,15 +1,15 @@
 import { relations } from "drizzle-orm";
 import {
+  boolean,
+  decimal,
+  index,
+  integer,
   pgTable,
   serial,
-  varchar,
   text,
-  boolean,
-  integer,
-  decimal,
   timestamp,
-  index,
   uniqueIndex,
+  varchar,
 } from "drizzle-orm/pg-core";
 
 // ─── Events ───────────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ export const events = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("idx_events_status").on(table.status)]
+  (table) => [index("idx_events_status").on(table.status)],
 );
 
 // ─── Markets ──────────────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ export const markets = pgTable(
     index("idx_markets_event_id").on(table.eventId),
     index("idx_markets_status").on(table.status),
     index("idx_markets_end_date").on(table.endDate),
-  ]
+  ],
 );
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ export const users = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [uniqueIndex("idx_users_discord_id").on(table.discordId)]
+  (table) => [uniqueIndex("idx_users_discord_id").on(table.discordId)],
 );
 
 // ─── Guild Members (per-guild user state) ────────────────────────────────────
@@ -113,7 +113,7 @@ export const guildMembers = pgTable(
   (table) => [
     uniqueIndex("idx_guild_members_user_guild").on(table.userId, table.guildId),
     index("idx_guild_members_guild_id").on(table.guildId),
-  ]
+  ],
 );
 
 // ─── Bets ─────────────────────────────────────────────────────────────────────
@@ -149,7 +149,7 @@ export const bets = pgTable(
     index("idx_bets_status").on(table.status),
     index("idx_bets_guild_id").on(table.guildId),
     index("idx_bets_user_status").on(table.userId, table.status),
-  ]
+  ],
 );
 
 // ─── Guild Settings ───────────────────────────────────────────────────────────

@@ -1,8 +1,9 @@
 import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
 import { eq } from "drizzle-orm";
-import type { Command } from "./types.js";
 import { db } from "../db/index.js";
-import { guildMembers, users } from "../db/schema.js";
+import { guildMembers } from "../db/schema.js";
+import { requireGuildId } from "../utils/guards.js";
+import type { Command } from "./types.js";
 
 export const leaderboardCommand: Command = {
   data: new SlashCommandBuilder()
@@ -16,15 +17,17 @@ export const leaderboardCommand: Command = {
         .addChoices(
           { name: "Points (balance)", value: "points" },
           { name: "Skill (accumulated %)", value: "skill" },
-          { name: "Average (per bet)", value: "average" }
-        )
+          { name: "Average (per bet)", value: "average" },
+        ),
     ),
 
   async execute(interaction) {
     await interaction.deferReply();
 
+    const guildId = await requireGuildId(interaction);
+    if (!guildId) return;
+
     const sort = interaction.options.getString("sort") || "points";
-    const guildId = interaction.guildId!;
 
     // Get all guild members for this guild
     const members = await db.query.guildMembers.findMany({
@@ -49,7 +52,7 @@ export const leaderboardCommand: Command = {
     switch (sort) {
       case "skill":
         sorted = [...members].sort(
-          (a, b) => parseFloat(b.accumulatedPct) - parseFloat(a.accumulatedPct)
+          (a, b) => parseFloat(b.accumulatedPct) - parseFloat(a.accumulatedPct),
         );
         title = "Leaderboard — Prediction Skill";
         formatValue = (m) => {
@@ -63,10 +66,8 @@ export const leaderboardCommand: Command = {
         sorted = [...members]
           .filter((m) => m.totalBetsSettled > 0)
           .sort((a, b) => {
-            const avgA =
-              parseFloat(a.accumulatedPct) / a.totalBetsSettled;
-            const avgB =
-              parseFloat(b.accumulatedPct) / b.totalBetsSettled;
+            const avgA = parseFloat(a.accumulatedPct) / a.totalBetsSettled;
+            const avgB = parseFloat(b.accumulatedPct) / b.totalBetsSettled;
             return avgB - avgA;
           });
         title = "Leaderboard — Average Per Bet";
@@ -78,9 +79,7 @@ export const leaderboardCommand: Command = {
         break;
 
       default: // "points"
-        sorted = [...members].sort(
-          (a, b) => b.pointsBalance - a.pointsBalance
-        );
+        sorted = [...members].sort((a, b) => b.pointsBalance - a.pointsBalance);
         title = "Leaderboard — Points";
         formatValue = (m) => `${m.pointsBalance.toLocaleString()} pts`;
         break;
