@@ -14,13 +14,3 @@ export async function runMigrations() {
 
   await migrationClient.end();
 }
-
-// Allow running directly: bun run db:migrate
-const isDirectRun =
-  import.meta.url === `file://${process.argv[1]}` ||
-  process.argv[1]?.endsWith("migrate.ts");
-
-if (isDirectRun) {
-  await runMigrations();
-  process.exit(0);
-}
