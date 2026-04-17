@@ -17,8 +17,10 @@ import {
 import {
   buildMarketButtons,
   buildMarketEmbed,
+  buildSearchControlsRow,
   buildSearchResultsEmbed,
   buildSearchSelectMenu,
+  computeSearchPages,
   type SearchResultItem,
 } from "../ui/marketCard.js";
 import { logger } from "../utils/logger.js";
@@ -123,58 +125,23 @@ async function handleSearch(
       return;
     }
 
-    // Multiple results — build search items without DB upserts (cache only)
-    const searchItems: SearchResultItem[] = [];
-    for (const event of gammaEvents) {
-      const eventStatus = event.closed
-        ? "closed"
-        : event.active
-          ? "active"
-          : "inactive";
-
-      if (event.markets.length > 1) {
-        const activeMarkets = event.markets.filter(
-          (m) => m.active && !m.closed,
-        );
-        const marketsToCheck =
-          activeMarkets.length > 0 ? activeMarkets : event.markets;
-        const [firstMarket] = marketsToCheck;
-        if (!firstMarket) continue;
-        const frontrunner = marketsToCheck.reduce((best, m) => {
-          const price = m.outcomePrices[0] ?? 0;
-          return price > (best.outcomePrices[0] ?? 0) ? m : best;
-        }, firstMarket);
-
-        const frontrunnerLabel = extractOutcomeLabel(
-          frontrunner.question,
-          frontrunner.groupItemTitle,
-        );
-        const pct = ((frontrunner.outcomePrices[0] ?? 0.5) * 100).toFixed(0);
-        searchItems.push({
-          conditionId: frontrunner.conditionId,
-          question: event.title,
-          yesPrice: frontrunner.outcomePrices[0] ?? 0.5,
-          outcomeLabel: `${frontrunnerLabel} ${pct}% · ${event.markets.length} outcomes`,
-          status: eventStatus,
-        });
-      } else if (event.markets.length === 1) {
-        const [m] = event.markets;
-        if (!m) continue;
-        searchItems.push({
-          conditionId: m.conditionId,
-          question: m.question,
-          yesPrice: m.outcomePrices[0] ?? 0.5,
-          outcomeLabel: m.groupItemTitle || null,
-          status: eventStatus,
-        });
-      }
-    }
-
-    const embed = buildSearchResultsEmbed(query, searchItems);
-    const selectMenu = buildSearchSelectMenu(searchItems);
+    const searchItems = eventsToSearchItems(gammaEvents);
+    const hasResolved = searchItems.some(
+      (r) => r.status === "resolved" || r.status === "closed",
+    );
+    const totalPages = computeSearchPages(searchItems, false);
+    const embed = buildSearchResultsEmbed(query, searchItems, false, 0);
+    const selectMenu = buildSearchSelectMenu(searchItems, false, 0);
+    const controls = buildSearchControlsRow(
+      query,
+      false,
+      hasResolved,
+      0,
+      totalPages,
+    );
     await interaction.editReply({
       embeds: [embed],
-      components: [selectMenu],
+      components: controls ? [selectMenu, controls] : [selectMenu],
     });
   } catch (err) {
     logger.error("Market search failed:", err);
@@ -464,4 +431,51 @@ function buildEventCardFromGamma(gamma: GammaEvent): EventCardData {
   };
 }
 
-export { buildEventCardFromGamma, gammaMarketToCardData };
+function eventsToSearchItems(gammaEvents: GammaEvent[]): SearchResultItem[] {
+  const items: SearchResultItem[] = [];
+  for (const event of gammaEvents) {
+    const eventStatus = event.closed
+      ? "closed"
+      : event.active
+        ? "active"
+        : "inactive";
+
+    if (event.markets.length > 1) {
+      const activeMarkets = event.markets.filter((m) => m.active && !m.closed);
+      const marketsToCheck =
+        activeMarkets.length > 0 ? activeMarkets : event.markets;
+      const [firstMarket] = marketsToCheck;
+      if (!firstMarket) continue;
+      const frontrunner = marketsToCheck.reduce((best, m) => {
+        const price = m.outcomePrices[0] ?? 0;
+        return price > (best.outcomePrices[0] ?? 0) ? m : best;
+      }, firstMarket);
+
+      const frontrunnerLabel = extractOutcomeLabel(
+        frontrunner.question,
+        frontrunner.groupItemTitle,
+      );
+      const pct = ((frontrunner.outcomePrices[0] ?? 0.5) * 100).toFixed(0);
+      items.push({
+        conditionId: frontrunner.conditionId,
+        question: event.title,
+        yesPrice: frontrunner.outcomePrices[0] ?? 0.5,
+        outcomeLabel: `${frontrunnerLabel} ${pct}% · ${event.markets.length} outcomes`,
+        status: eventStatus,
+      });
+    } else if (event.markets.length === 1) {
+      const [m] = event.markets;
+      if (!m) continue;
+      items.push({
+        conditionId: m.conditionId,
+        question: m.question,
+        yesPrice: m.outcomePrices[0] ?? 0.5,
+        outcomeLabel: m.groupItemTitle || null,
+        status: eventStatus,
+      });
+    }
+  }
+  return items;
+}
+
+export { buildEventCardFromGamma, eventsToSearchItems, gammaMarketToCardData };

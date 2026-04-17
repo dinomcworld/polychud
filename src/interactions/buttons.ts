@@ -11,6 +11,7 @@ import {
 } from "discord.js";
 import {
   buildEventCardFromGamma,
+  eventsToSearchItems,
   gammaMarketToCardData,
 } from "../commands/market.js";
 import { config } from "../config.js";
@@ -21,6 +22,7 @@ import {
   getEventById,
   getMarketByConditionId,
   getMidpointPrice,
+  searchMarkets,
 } from "../services/polymarket.js";
 import { ensureUser } from "../services/users.js";
 import {
@@ -29,7 +31,14 @@ import {
   buildEventEmbed,
   buildEventSelectMenu,
 } from "../ui/eventCard.js";
-import { buildMarketButtons, buildMarketEmbed } from "../ui/marketCard.js";
+import {
+  buildMarketButtons,
+  buildMarketEmbed,
+  buildSearchControlsRow,
+  buildSearchResultsEmbed,
+  buildSearchSelectMenu,
+  computeSearchPages,
+} from "../ui/marketCard.js";
 import { requireGuildId } from "../utils/guards.js";
 import { logger } from "../utils/logger.js";
 
@@ -52,6 +61,13 @@ export async function handleButton(interaction: ButtonInteraction) {
     await handleConfirm(interaction);
   } else if (id.startsWith("close_bet_")) {
     await handleCloseBet(interaction);
+  } else if (
+    id.startsWith("show_search_resolved_") ||
+    id.startsWith("hide_search_resolved_")
+  ) {
+    await handleToggleSearchResolved(interaction);
+  } else if (id.startsWith("search_page_")) {
+    await handleSearchPage(interaction);
   } else if (
     id.startsWith("show_resolved_") ||
     id.startsWith("hide_resolved_")
@@ -566,6 +582,84 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
     embeds: [embed],
     components: [],
   });
+}
+
+async function renderSearchState(
+  interaction: ButtonInteraction,
+  query: string,
+  showResolved: boolean,
+  page: number,
+) {
+  const gammaEvents = await searchMarkets(query);
+  const searchItems = eventsToSearchItems(gammaEvents);
+  const hasResolved = searchItems.some(
+    (r) => r.status === "resolved" || r.status === "closed",
+  );
+  const totalPages = computeSearchPages(searchItems, showResolved);
+  const safePage = Math.min(Math.max(page, 0), totalPages - 1);
+  const embed = buildSearchResultsEmbed(
+    query,
+    searchItems,
+    showResolved,
+    safePage,
+  );
+  const selectMenu = buildSearchSelectMenu(searchItems, showResolved, safePage);
+  const controls = buildSearchControlsRow(
+    query,
+    showResolved,
+    hasResolved,
+    safePage,
+    totalPages,
+  );
+  await interaction.editReply({
+    embeds: [embed],
+    components: controls ? [selectMenu, controls] : [selectMenu],
+  });
+}
+
+async function handleToggleSearchResolved(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  const showResolved = interaction.customId.startsWith("show_search_resolved_");
+  const prefix = showResolved
+    ? "show_search_resolved_"
+    : "hide_search_resolved_";
+  const encoded = interaction.customId.slice(prefix.length);
+  const query = decodeURIComponent(encoded);
+
+  try {
+    await renderSearchState(interaction, query, showResolved, 0);
+  } catch (err) {
+    logger.error("Toggle search resolved failed:", err);
+    await interaction.followUp({
+      content: "Couldn't update view. Try again.",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+}
+
+async function handleSearchPage(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  // search_page_{page}_{resolvedFlag}_{encodedQuery}
+  const rest = interaction.customId.slice("search_page_".length);
+  const firstUnderscore = rest.indexOf("_");
+  const secondUnderscore = rest.indexOf("_", firstUnderscore + 1);
+  if (firstUnderscore < 0 || secondUnderscore < 0) return;
+
+  const page = parseInt(rest.slice(0, firstUnderscore), 10);
+  const resolvedFlag = rest.slice(firstUnderscore + 1, secondUnderscore);
+  const encoded = rest.slice(secondUnderscore + 1);
+  const query = decodeURIComponent(encoded);
+  const showResolved = resolvedFlag === "1";
+
+  try {
+    await renderSearchState(interaction, query, showResolved, page);
+  } catch (err) {
+    logger.error("Search page change failed:", err);
+    await interaction.followUp({
+      content: "Couldn't change page. Try again.",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
 }
 
 async function handleToggleResolved(interaction: ButtonInteraction) {

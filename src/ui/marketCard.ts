@@ -128,46 +128,74 @@ export interface SearchResultItem {
   status?: string;
 }
 
+export const SEARCH_PAGE_SIZE = 10;
+
+export function paginateSearchResults(
+  results: SearchResultItem[],
+  showResolved: boolean,
+): SearchResultItem[] {
+  const filtered = showResolved
+    ? results
+    : results.filter((r) => r.status !== "resolved" && r.status !== "closed");
+  return filtered.length > 0 ? filtered : results;
+}
+
 export function buildSearchResultsEmbed(
   query: string,
   results: SearchResultItem[],
+  showResolved = false,
+  page = 0,
 ) {
-  const lines = results.slice(0, 10).map((r, i) => {
+  const display = paginateSearchResults(results, showResolved);
+  const hiddenCount = results.length - display.length;
+  const totalPages = Math.max(1, Math.ceil(display.length / SEARCH_PAGE_SIZE));
+  const safePage = Math.min(Math.max(page, 0), totalPages - 1);
+  const start = safePage * SEARCH_PAGE_SIZE;
+  const pageItems = display.slice(start, start + SEARCH_PAGE_SIZE);
+
+  const lines = pageItems.map((r, i) => {
+    const idx = start + i + 1;
     const q = escapeMarkdown(
       r.question.length > 60 ? `${r.question.slice(0, 57)}...` : r.question,
     );
 
-    // Show resolved/closed status
     if (r.status === "resolved" || r.status === "closed") {
       const label = r.outcomeLabel ? `${escapeMarkdown(r.outcomeLabel)}: ` : "";
-      return `**${i + 1}.** ${label}${q} — *Resolved*`;
+      return `**${idx}.** ${label}${q} — *Resolved*`;
     }
 
-    // Multi-outcome items already have frontrunner info in outcomeLabel
     if (r.outcomeLabel?.includes(" outcomes")) {
-      return `**${i + 1}.** ${q} — ${escapeMarkdown(r.outcomeLabel)}`;
+      return `**${idx}.** ${q} — ${escapeMarkdown(r.outcomeLabel)}`;
     }
 
     const label = r.outcomeLabel ? `${escapeMarkdown(r.outcomeLabel)}: ` : "";
     const pct = (r.yesPrice * 100).toFixed(1);
-    return `**${i + 1}.** ${label}${q} — **${pct}%** YES`;
+    return `**${idx}.** ${label}${q} — **${pct}%** YES`;
   });
+
+  const parts = [`${display.length} result${display.length !== 1 ? "s" : ""}`];
+  if (totalPages > 1) parts.push(`Page ${safePage + 1}/${totalPages}`);
+  if (hiddenCount > 0) parts.push(`${hiddenCount} resolved hidden`);
+  parts.push("Select one to view details");
 
   return new EmbedBuilder()
     .setTitle(`Search: "${query}"`)
     .setDescription(lines.join("\n"))
     .setColor(0x5865f2)
-    .setFooter({
-      text: `${results.length} result${results.length !== 1 ? "s" : ""} \u2022 Select one to view details`,
-    });
+    .setFooter({ text: parts.join(" \u2022 ") });
 }
 
-export function buildSearchSelectMenu(results: SearchResultItem[]) {
-  // Filter to only active markets for the select menu
-  const activeResults = results.filter(
-    (r) => !r.status || r.status === "active",
-  );
-  const items = activeResults.length > 0 ? activeResults : results;
+export function buildSearchSelectMenu(
+  results: SearchResultItem[],
+  showResolved = false,
+  page = 0,
+) {
+  const display = paginateSearchResults(results, showResolved);
+  const totalPages = Math.max(1, Math.ceil(display.length / SEARCH_PAGE_SIZE));
+  const safePage = Math.min(Math.max(page, 0), totalPages - 1);
+  const start = safePage * SEARCH_PAGE_SIZE;
+  const pageItems = display.slice(start, start + SEARCH_PAGE_SIZE);
+  const items = pageItems.length > 0 ? pageItems : display;
 
   const menu = new StringSelectMenuBuilder()
     .setCustomId("market_select")
@@ -191,6 +219,57 @@ export function buildSearchSelectMenu(results: SearchResultItem[]) {
     );
 
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+}
+
+export function buildSearchControlsRow(
+  query: string,
+  showResolved: boolean,
+  hasResolved: boolean,
+  page: number,
+  totalPages: number,
+): ActionRowBuilder<ButtonBuilder> | null {
+  const buttons: ButtonBuilder[] = [];
+  // Discord caps customId at 100 chars; encode query and clip.
+  const encoded = encodeURIComponent(query).slice(0, 60);
+  const resolvedFlag = showResolved ? "1" : "0";
+
+  if (totalPages > 1) {
+    buttons.push(
+      new ButtonBuilder()
+        .setCustomId(`search_page_${page - 1}_${resolvedFlag}_${encoded}`)
+        .setLabel("◀ Prev")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page <= 0),
+      new ButtonBuilder()
+        .setCustomId(`search_page_${page + 1}_${resolvedFlag}_${encoded}`)
+        .setLabel("Next ▶")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page >= totalPages - 1),
+    );
+  }
+
+  if (hasResolved || showResolved) {
+    const prefix = showResolved
+      ? "hide_search_resolved_"
+      : "show_search_resolved_";
+    buttons.push(
+      new ButtonBuilder()
+        .setCustomId(`${prefix}${encoded}`)
+        .setLabel(showResolved ? "Hide Resolved" : "Show Resolved")
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
+
+  if (buttons.length === 0) return null;
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons);
+}
+
+export function computeSearchPages(
+  results: SearchResultItem[],
+  showResolved: boolean,
+): number {
+  const display = paginateSearchResults(results, showResolved);
+  return Math.max(1, Math.ceil(display.length / SEARCH_PAGE_SIZE));
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

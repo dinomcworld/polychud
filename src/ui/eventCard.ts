@@ -36,13 +36,28 @@ export function buildEventEmbed(event: EventCardData, showResolved = false) {
   const display = filtered.length > 0 ? filtered : event.outcomes;
   const sorted = [...display].sort((a, b) => b.yesPrice - a.yesPrice);
 
-  const lines = sorted.map((o) => {
+  const MAX_LINES = 20;
+  const MAX_DESC = 4096;
+  const capped = sorted.slice(0, MAX_LINES);
+  const truncatedCount = sorted.length - capped.length;
+
+  const lines = capped.map((o) => {
     const pct = o.yesPrice * 100;
     const bar = buildProgressBar(pct);
     const resolved =
       o.status === "resolved" || o.status === "closed" ? " *(Resolved)*" : "";
     return `${bar} **${pct.toFixed(1)}%** — ${escapeMarkdown(o.label)}${resolved}`;
   });
+  if (truncatedCount > 0) {
+    lines.push(
+      `_…and ${truncatedCount} more outcome${truncatedCount !== 1 ? "s" : ""}_`,
+    );
+  }
+
+  let description = lines.join("\n");
+  if (description.length > MAX_DESC) {
+    description = `${description.slice(0, MAX_DESC - 1)}…`;
+  }
 
   const eventUrl = event.slug
     ? `https://polymarket.com/event/${event.slug}`
@@ -56,7 +71,7 @@ export function buildEventEmbed(event: EventCardData, showResolved = false) {
     .setTitle(title)
     .setURL(eventUrl)
     .setColor(event.status === "active" ? 0x5865f2 : 0x888888)
-    .setDescription(lines.join("\n"))
+    .setDescription(description)
     .setFooter({ text: "Select an outcome to bet on" })
     .setTimestamp();
 
