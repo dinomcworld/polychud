@@ -17,5 +17,7 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+        env:
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: 1
       - run: bun run lint
       - run: bun run typecheck

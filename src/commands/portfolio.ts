@@ -1,4 +1,4 @@
-import { EmbedBuilder, MessageFlags, SlashCommandBuilder } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
 import { getUserActiveBets } from "../services/betting.js";
 import { getUserStats } from "../services/users.js";
 import { requireGuildId } from "../utils/guards.js";
@@ -7,16 +7,24 @@ import type { Command } from "./types.js";
 export const portfolioCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("portfolio")
-    .setDescription("View your betting portfolio and stats"),
+    .setDescription("View a betting portfolio and stats")
+    .addUserOption((opt) =>
+      opt
+        .setName("user")
+        .setDescription("User to view (defaults to yourself)")
+        .setRequired(false),
+    ) as SlashCommandBuilder,
 
   async execute(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply();
 
     const guildId = await requireGuildId(interaction);
     if (!guildId) return;
 
-    const stats = await getUserStats(interaction.user.id, guildId);
-    const activeBets = await getUserActiveBets(interaction.user.id, guildId);
+    const target = interaction.options.getUser("user") ?? interaction.user;
+
+    const stats = await getUserStats(target.id, guildId);
+    const activeBets = await getUserActiveBets(target.id, guildId);
 
     const pctSign = stats.accumulatedPct >= 0 ? "+" : "";
     const pctColor =
@@ -27,9 +35,9 @@ export const portfolioCommand: Command = {
           : 0x888888;
 
     const embed = new EmbedBuilder()
-      .setTitle(`${interaction.user.displayName}'s Portfolio`)
+      .setTitle(`${target.displayName}'s Portfolio`)
       .setColor(pctColor)
-      .setThumbnail(interaction.user.displayAvatarURL())
+      .setThumbnail(target.displayAvatarURL())
       .addFields(
         {
           name: "Balance",

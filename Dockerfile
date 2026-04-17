@@ -2,8 +2,7 @@
 FROM oven/bun:1-alpine AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
-
+RUN SKIP_INSTALL_SIMPLE_GIT_HOOKS=1 bun ci
 # ─── Stage 2: Build with Bun ───────────────────────────────────────────────────
 FROM deps AS builder
 COPY tsconfig.json ./

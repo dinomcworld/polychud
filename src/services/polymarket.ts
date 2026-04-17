@@ -204,8 +204,9 @@ export async function searchMarkets(query: string): Promise<GammaEvent[]> {
     const parsed = parseEvent(rawEvent);
     eventCache.set(`event:${parsed.id}`, parsed, MARKET_CACHE_TTL);
     for (const m of parsed.markets) {
-      m.events = [parsed];
-      marketCache.set(`market:${m.conditionId}`, m, MARKET_CACHE_TTL);
+      if (!m.conditionId) continue;
+      const withParent = { ...m, events: [parsed] };
+      marketCache.set(`market:${m.conditionId}`, withParent, MARKET_CACHE_TTL);
     }
     results.push(parsed);
   }
@@ -224,6 +225,7 @@ export async function getTrendingMarkets(
   for (const event of results) {
     eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
     for (const m of event.markets) {
+      if (!m.conditionId) continue;
       marketCache.set(`market:${m.conditionId}`, m, MARKET_CACHE_TTL);
     }
   }
@@ -241,6 +243,7 @@ export async function getEventBySlug(slug: string): Promise<GammaEvent | null> {
   const event = parseEvent(first);
   eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
   for (const m of event.markets) {
+    if (!m.conditionId) continue;
     marketCache.set(`market:${m.conditionId}`, m, MARKET_CACHE_TTL);
   }
   return event;
@@ -256,7 +259,9 @@ export async function getMarketById(
   if (!first) return null;
 
   const market = parseMarket(first);
-  marketCache.set(`market:${market.conditionId}`, market, MARKET_CACHE_TTL);
+  if (market.conditionId) {
+    marketCache.set(`market:${market.conditionId}`, market, MARKET_CACHE_TTL);
+  }
   return market;
 }
 
@@ -275,8 +280,9 @@ export async function getEventById(
   const event = parseEvent(first);
   eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
   for (const m of event.markets) {
-    m.events = [event];
-    marketCache.set(`market:${m.conditionId}`, m, MARKET_CACHE_TTL);
+    if (!m.conditionId) continue;
+    const withParent = { ...m, events: [event] };
+    marketCache.set(`market:${m.conditionId}`, withParent, MARKET_CACHE_TTL);
   }
   return event;
 }
@@ -284,6 +290,7 @@ export async function getEventById(
 export async function getMarketByConditionId(
   conditionId: string,
 ): Promise<GammaMarket | null> {
+  if (!conditionId) return null;
   const url = `${config.POLYMARKET_GAMMA_URL}/markets?conditionId=${encodeURIComponent(conditionId)}`;
   const response = await fetchWithRetry(url);
   const raw = (await response.json()) as RawApiObject[];
@@ -291,7 +298,13 @@ export async function getMarketByConditionId(
   if (!first) return null;
 
   const market = parseMarket(first);
-  marketCache.set(`market:${market.conditionId}`, market, MARKET_CACHE_TTL);
+  if (market.conditionId && market.conditionId !== conditionId) {
+    logger.warn(
+      `getMarketByConditionId: API returned conditionId ${market.conditionId} for request ${conditionId}`,
+    );
+    return null;
+  }
+  marketCache.set(`market:${conditionId}`, market, MARKET_CACHE_TTL);
   return market;
 }
 
