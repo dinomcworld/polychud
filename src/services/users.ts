@@ -1,7 +1,13 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { config } from "../config.js";
 import { db } from "../db/index.js";
-import { guildMembers, guildSettings, users } from "../db/schema.js";
+import {
+  bets,
+  guildMembers,
+  guildSettings,
+  markets,
+  users,
+} from "../db/schema.js";
 
 export async function ensureGuildSettings(guildId: string) {
   const existing = await db.query.guildSettings.findFirst({
@@ -164,6 +170,37 @@ export async function getUserStats(discordId: string, guildId: string) {
       ? ((member.totalWon / member.totalBetsSettled) * 100).toFixed(1)
       : "0.0";
 
+  // Realized net P&L from settled/closed/cancelled bets
+  const [netRow] = await db
+    .select({
+      net: sql<string>`COALESCE(SUM(${bets.actualPayout} - ${bets.amount}), 0)`,
+    })
+    .from(bets)
+    .where(
+      and(
+        eq(bets.userId, user.id),
+        eq(bets.guildId, guildId),
+        isNotNull(bets.actualPayout),
+      ),
+    );
+  const netPnL = Number(netRow?.net ?? 0);
+
+  // Mark-to-market value of open positions
+  const [openRow] = await db
+    .select({
+      openValue: sql<string>`COALESCE(SUM(${bets.potentialPayout} * CASE WHEN ${bets.outcome} = 'yes' THEN ${markets.currentYesPrice} ELSE ${markets.currentNoPrice} END), 0)`,
+    })
+    .from(bets)
+    .innerJoin(markets, eq(bets.marketId, markets.id))
+    .where(
+      and(
+        eq(bets.userId, user.id),
+        eq(bets.guildId, guildId),
+        eq(bets.status, "pending"),
+      ),
+    );
+  const openValue = Number(openRow?.openValue ?? 0);
+
   return {
     pointsBalance: member.pointsBalance,
     accumulatedPct: parseFloat(member.accumulatedPct),
@@ -172,5 +209,8 @@ export async function getUserStats(discordId: string, guildId: string) {
     totalLost: member.totalLost,
     winRate,
     activeBetsCount: activeBets.length,
+    netPnL,
+    openValue,
+    portfolioValue: member.pointsBalance + openValue,
   };
 }

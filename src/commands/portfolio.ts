@@ -37,6 +37,16 @@ export const portfolioCommand: Command = {
           inline: true,
         },
         {
+          name: "Portfolio Value",
+          value: `**${Math.round(stats.portfolioValue).toLocaleString()}** pts (+${Math.round(stats.openValue).toLocaleString()} open)`,
+          inline: true,
+        },
+        {
+          name: "Net P&L",
+          value: `${stats.netPnL >= 0 ? "+" : ""}${stats.netPnL.toLocaleString()} pts`,
+          inline: true,
+        },
+        {
           name: "Accumulated %",
           value: `${pctSign}${stats.accumulatedPct.toFixed(2)}`,
           inline: true,
