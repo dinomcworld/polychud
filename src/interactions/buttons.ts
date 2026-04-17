@@ -309,6 +309,10 @@ async function handleConfirm(interaction: ButtonInteraction) {
   const embed = new EmbedBuilder()
     .setTitle("Bet Placed!")
     .setColor(0x00cc66)
+    .setAuthor({
+      name: interaction.user.displayName,
+      iconURL: interaction.user.displayAvatarURL(),
+    })
     .setDescription(
       [
         `**Outcome:** ${outcome.toUpperCase()} at ${pct}%`,
@@ -321,8 +325,13 @@ async function handleConfirm(interaction: ButtonInteraction) {
     .setTimestamp();
 
   await interaction.editReply({
-    embeds: [embed],
+    content: "Bet placed!",
+    embeds: [],
     components: [],
+  });
+
+  await interaction.followUp({
+    embeds: [embed],
   });
 }
 
