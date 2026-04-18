@@ -9,13 +9,19 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
+import { buildBetListView } from "../commands/bet.js";
 import {
   buildEventCardFromGamma,
   eventsToSearchItems,
   gammaMarketToCardData,
 } from "../commands/market.js";
 import { config } from "../config.js";
-import { closeBet, getBetById, placeBet } from "../services/betting.js";
+import {
+  closeBet,
+  getBetById,
+  getUserActiveBets,
+  placeBet,
+} from "../services/betting.js";
 import { upsertStandaloneMarket } from "../services/markets.js";
 import {
   getCachedMarket,
@@ -40,6 +46,10 @@ import {
   computeSearchPages,
   escapeMarkdown,
 } from "../ui/marketCard.js";
+import {
+  rememberMarketMessage,
+  takeMarketMessage,
+} from "../utils/betContext.js";
 import { requireGuildId } from "../utils/guards.js";
 import { logger } from "../utils/logger.js";
 
@@ -62,6 +72,8 @@ export async function handleButton(interaction: ButtonInteraction) {
     await handleConfirm(interaction);
   } else if (id.startsWith("close_bet_")) {
     await handleCloseBet(interaction);
+  } else if (id.startsWith("bets_page_")) {
+    await handleBetsPage(interaction);
   } else if (
     id.startsWith("show_search_resolved_") ||
     id.startsWith("hide_search_resolved_")
@@ -97,6 +109,14 @@ async function handleBetButton(interaction: ButtonInteraction) {
     "yes" | "no",
     string,
   ];
+
+  rememberMarketMessage(
+    interaction.user.id,
+    conditionId,
+    outcome,
+    interaction.channelId,
+    interaction.message.id,
+  );
 
   const modal = new ModalBuilder()
     .setCustomId(`betmodal_${conditionId}_${outcome}`)
@@ -366,18 +386,76 @@ async function handleConfirm(interaction: ButtonInteraction) {
     components: [],
   });
 
+  const context = takeMarketMessage(interaction.user.id, conditionId, outcome);
+  const channel = interaction.channel;
+  if (
+    context &&
+    channel &&
+    "send" in channel &&
+    channel.id === context.channelId
+  ) {
+    try {
+      await channel.send({
+        embeds: [embed],
+        reply: {
+          messageReference: context.messageId,
+          failIfNotExists: false,
+        },
+      });
+      return;
+    } catch (err) {
+      logger.warn("Failed to reply to market card, falling back to followUp", {
+        err,
+      });
+    }
+  }
+
   await interaction.followUp({
     embeds: [embed],
   });
 }
 
-async function handleCloseBet(interaction: ButtonInteraction) {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+async function handleBetsPage(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
 
+  // bets_page_{page}
+  const pageStr = interaction.customId.slice("bets_page_".length);
+  const page = parseInt(pageStr, 10);
+  if (Number.isNaN(page)) return;
+
+  const guildId = await requireGuildId(interaction);
+  if (!guildId) return;
+
+  const activeBets = await getUserActiveBets(interaction.user.id, guildId);
+  if (activeBets.length === 0) {
+    await interaction.editReply({
+      content:
+        "You have no active bets. Use `/market search` to find markets and place bets!",
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  const view = buildBetListView(activeBets, page);
+  await interaction.editReply(view);
+}
+
+async function handleCloseBet(interaction: ButtonInteraction) {
   // close_bet_{betId}
   const betIdStr = interaction.customId.split("_")[2];
   if (!betIdStr) return;
   const betId = parseInt(betIdStr, 10);
+  await showCloseBetPreview(interaction, betId);
+}
+
+export async function showCloseBetPreview(
+  interaction:
+    | ButtonInteraction
+    | import("discord.js").StringSelectMenuInteraction,
+  betId: number,
+) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const guildId = await requireGuildId(interaction);
   if (!guildId) return;

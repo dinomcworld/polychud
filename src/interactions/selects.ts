@@ -15,6 +15,7 @@ import {
 } from "../ui/eventCard.js";
 import { buildMarketButtons, buildMarketEmbed } from "../ui/marketCard.js";
 import { logger } from "../utils/logger.js";
+import { showCloseBetPreview } from "./buttons.js";
 
 export async function handleSelectMenu(
   interaction: StringSelectMenuInteraction,
@@ -29,6 +30,8 @@ export async function handleSelectMenu(
     await handleMarketSelect(interaction);
   } else if (id.startsWith("event_select_")) {
     await handleEventSelect(interaction);
+  } else if (id === "bets_close_select") {
+    await handleBetsCloseSelect(interaction);
   } else {
     await interaction.reply({
       content: "This menu isn't implemented yet.",
@@ -103,6 +106,14 @@ async function handleMarketSelect(interaction: StringSelectMenuInteraction) {
       flags: MessageFlags.Ephemeral,
     });
   }
+}
+
+async function handleBetsCloseSelect(interaction: StringSelectMenuInteraction) {
+  const value = interaction.values[0];
+  if (!value) return;
+  const betId = parseInt(value, 10);
+  if (Number.isNaN(betId)) return;
+  await showCloseBetPreview(interaction, betId);
 }
 
 async function handleEventSelect(interaction: StringSelectMenuInteraction) {
