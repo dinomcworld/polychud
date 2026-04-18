@@ -1,15 +1,21 @@
 import {
   ActionRowBuilder,
+  type BaseMessageOptions,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
   MessageFlags,
   SlashCommandBuilder,
+  StringSelectMenuBuilder,
 } from "discord.js";
 import { getUserActiveBets } from "../services/betting.js";
 import { ensureUser } from "../services/users.js";
 import { requireGuildId } from "../utils/guards.js";
 import type { Command } from "./types.js";
+
+type ActiveBet = Awaited<ReturnType<typeof getUserActiveBets>>[number];
+
+export const BETS_PAGE_SIZE = 5;
 
 export const betCommand: Command = {
   data: new SlashCommandBuilder()
@@ -47,12 +53,25 @@ async function handleBetList(
     return;
   }
 
+  const view = buildBetListView(activeBets, 0);
+  await interaction.editReply(view);
+}
+
+export function buildBetListView(
+  bets: ActiveBet[],
+  page: number,
+): BaseMessageOptions {
+  const totalPages = Math.max(1, Math.ceil(bets.length / BETS_PAGE_SIZE));
+  const safePage = Math.min(Math.max(page, 0), totalPages - 1);
+  const start = safePage * BETS_PAGE_SIZE;
+  const pageBets = bets.slice(start, start + BETS_PAGE_SIZE);
+
   const embed = new EmbedBuilder()
     .setTitle("Your Active Bets")
     .setColor(0x5865f2)
     .setTimestamp();
 
-  const fields = activeBets.slice(0, 5).map((bet, _i) => {
+  const fields = pageBets.map((bet) => {
     const question = bet.market
       ? bet.market.question.length > 50
         ? `${bet.market.question.slice(0, 47)}...`
@@ -95,32 +114,55 @@ async function handleBetList(
 
   embed.addFields(fields);
 
-  if (activeBets.length > 5) {
-    embed.setFooter({
-      text: `Showing 5 of ${activeBets.length} active bets`,
-    });
+  const footerParts = [
+    `${bets.length} active bet${bets.length !== 1 ? "s" : ""}`,
+  ];
+  if (totalPages > 1) footerParts.push(`Page ${safePage + 1}/${totalPages}`);
+  embed.setFooter({ text: footerParts.join(" \u2022 ") });
+
+  const components: ActionRowBuilder<
+    ButtonBuilder | StringSelectMenuBuilder
+  >[] = [];
+
+  if (pageBets.length > 0) {
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId("bets_close_select")
+      .setPlaceholder("Select a bet to close early...")
+      .addOptions(
+        pageBets.map((bet) => {
+          const label = `#${bet.id} — ${bet.outcome.toUpperCase()} · ${bet.amount.toLocaleString()} pts`;
+          const desc = bet.market
+            ? bet.market.question.length > 100
+              ? `${bet.market.question.slice(0, 97)}...`
+              : bet.market.question
+            : `Market #${bet.marketId}`;
+          return {
+            label: label.length > 100 ? `${label.slice(0, 97)}...` : label,
+            description: desc,
+            value: String(bet.id),
+          };
+        }),
+      );
+    components.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu),
+    );
   }
 
-  // Add close buttons (coming soon placeholder for Phase 2)
-  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
-  const closeButtons = activeBets
-    .slice(0, 5)
-    .map((bet) =>
+  if (totalPages > 1) {
+    const nav = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(`close_bet_${bet.id}`)
-        .setLabel(`Close #${bet.id}`)
-        .setStyle(ButtonStyle.Secondary),
+        .setCustomId(`bets_page_${safePage - 1}`)
+        .setLabel("◀ Prev")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(safePage <= 0),
+      new ButtonBuilder()
+        .setCustomId(`bets_page_${safePage + 1}`)
+        .setLabel("Next ▶")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(safePage >= totalPages - 1),
     );
-
-  // Discord allows max 5 buttons per row
-  if (closeButtons.length > 0) {
-    rows.push(
-      new ActionRowBuilder<ButtonBuilder>().addComponents(closeButtons),
-    );
+    components.push(nav);
   }
 
-  await interaction.editReply({
-    embeds: [embed],
-    components: rows,
-  });
+  return { embeds: [embed], components };
 }
