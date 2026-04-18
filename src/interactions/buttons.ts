@@ -15,6 +15,7 @@ import {
   eventsToSearchItems,
   gammaMarketToCardData,
 } from "../commands/market.js";
+import { buildPortfolioView } from "../commands/portfolio.js";
 import { config } from "../config.js";
 import {
   closeBet,
@@ -30,7 +31,7 @@ import {
   getMidpointPrice,
   searchMarkets,
 } from "../services/polymarket.js";
-import { ensureUser } from "../services/users.js";
+import { ensureUser, getUserStats } from "../services/users.js";
 import {
   buildBackToEventButton,
   buildEventButtons,
@@ -74,6 +75,8 @@ export async function handleButton(interaction: ButtonInteraction) {
     await handleCloseBet(interaction);
   } else if (id.startsWith("bets_page_")) {
     await handleBetsPage(interaction);
+  } else if (id.startsWith("portfolio_page_")) {
+    await handlePortfolioPage(interaction);
   } else if (
     id.startsWith("show_search_resolved_") ||
     id.startsWith("hide_search_resolved_")
@@ -438,6 +441,28 @@ async function handleBetsPage(interaction: ButtonInteraction) {
   }
 
   const view = buildBetListView(activeBets, page);
+  await interaction.editReply(view);
+}
+
+async function handlePortfolioPage(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+
+  // portfolio_page_{targetUserId}_{page}
+  const rest = interaction.customId.slice("portfolio_page_".length);
+  const lastUnderscore = rest.lastIndexOf("_");
+  if (lastUnderscore < 0) return;
+  const targetUserId = rest.slice(0, lastUnderscore);
+  const page = parseInt(rest.slice(lastUnderscore + 1), 10);
+  if (!targetUserId || Number.isNaN(page)) return;
+
+  const guildId = await requireGuildId(interaction);
+  if (!guildId) return;
+
+  const target = await interaction.client.users.fetch(targetUserId);
+  const stats = await getUserStats(targetUserId, guildId);
+  const activeBets = await getUserActiveBets(targetUserId, guildId);
+
+  const view = buildPortfolioView(target, stats, activeBets, page);
   await interaction.editReply(view);
 }
 
