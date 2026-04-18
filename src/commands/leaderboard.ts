@@ -49,9 +49,9 @@ export const leaderboardCommand: Command = {
 
     type MemberWithUser = (typeof members)[number];
 
-    // Net P&L per user, aggregated from settled/closed/cancelled bets
+    // Realized Net P&L per user, aggregated from settled/closed/cancelled bets
     const netByUserId = new Map<number, number>();
-    if (sort === "net") {
+    {
       const rows = await db
         .select({
           userId: bets.userId,
@@ -63,22 +63,40 @@ export const leaderboardCommand: Command = {
       for (const r of rows) netByUserId.set(r.userId, Number(r.net));
     }
 
-    // Open position mark-to-market value per user
-    // shares = potentialPayout; current value = shares * currentPrice(outcome)
+    // Open position mark-to-market, unrealized P&L, unrealized pct, active count.
     const openValueByUserId = new Map<number, number>();
-    if (sort === "portfolio") {
+    const unrealizedPnLByUserId = new Map<number, number>();
+    const unrealizedPctByUserId = new Map<number, number>();
+    const activeCountByUserId = new Map<number, number>();
+    {
+      const currentPriceExpr = sql`CASE WHEN ${bets.outcome} = 'yes' THEN ${markets.currentYesPrice} ELSE ${markets.currentNoPrice} END`;
       const rows = await db
         .select({
           userId: bets.userId,
-          openValue: sql<string>`COALESCE(SUM(${bets.potentialPayout} * CASE WHEN ${bets.outcome} = 'yes' THEN ${markets.currentYesPrice} ELSE ${markets.currentNoPrice} END), 0)`,
+          openValue: sql<string>`COALESCE(SUM(${bets.potentialPayout} * ${currentPriceExpr}), 0)`,
+          unrealizedPnL: sql<string>`COALESCE(SUM(${bets.potentialPayout} * ${currentPriceExpr} - ${bets.amount}), 0)`,
+          unrealizedPct: sql<string>`COALESCE(SUM(((${bets.potentialPayout} * ${currentPriceExpr} - ${bets.amount}) / ${bets.amount}) * 100), 0)`,
+          activeCount: sql<number>`COUNT(*)`,
         })
         .from(bets)
         .innerJoin(markets, eq(bets.marketId, markets.id))
         .where(and(eq(bets.guildId, guildId), eq(bets.status, "pending")))
         .groupBy(bets.userId);
-      for (const r of rows)
+      for (const r of rows) {
         openValueByUserId.set(r.userId, Number(r.openValue));
+        unrealizedPnLByUserId.set(r.userId, Number(r.unrealizedPnL));
+        unrealizedPctByUserId.set(r.userId, Number(r.unrealizedPct));
+        activeCountByUserId.set(r.userId, Number(r.activeCount));
+      }
     }
+
+    const totalNetFor = (m: MemberWithUser) =>
+      (netByUserId.get(m.userId) ?? 0) +
+      (unrealizedPnLByUserId.get(m.userId) ?? 0);
+    const totalPctFor = (m: MemberWithUser) =>
+      parseFloat(m.accumulatedPct) + (unrealizedPctByUserId.get(m.userId) ?? 0);
+    const totalBetsFor = (m: MemberWithUser) =>
+      m.totalBetsSettled + (activeCountByUserId.get(m.userId) ?? 0);
 
     // Sort based on mode
     let sorted: MemberWithUser[];
@@ -88,17 +106,18 @@ export const leaderboardCommand: Command = {
     switch (sort) {
       case "net": {
         sorted = [...members]
-          .filter((m) => netByUserId.has(m.userId))
-          .sort(
-            (a, b) =>
-              (netByUserId.get(b.userId) ?? 0) -
-              (netByUserId.get(a.userId) ?? 0),
-          );
+          .filter(
+            (m) =>
+              netByUserId.has(m.userId) || unrealizedPnLByUserId.has(m.userId),
+          )
+          .sort((a, b) => totalNetFor(b) - totalNetFor(a));
         title = "Leaderboard — Net P&L";
         formatValue = (m) => {
-          const net = netByUserId.get(m.userId) ?? 0;
-          const sign = net >= 0 ? "+" : "";
-          return `${sign}${net.toLocaleString()} pts`;
+          const total = Math.round(totalNetFor(m));
+          const open = Math.round(unrealizedPnLByUserId.get(m.userId) ?? 0);
+          const sign = total >= 0 ? "+" : "";
+          const openSign = open >= 0 ? "+" : "";
+          return `${sign}${total.toLocaleString()} pts (${openSign}${open.toLocaleString()} open)`;
         };
         break;
       }
@@ -117,30 +136,37 @@ export const leaderboardCommand: Command = {
       }
 
       case "skill":
-        sorted = [...members].sort(
-          (a, b) => parseFloat(b.accumulatedPct) - parseFloat(a.accumulatedPct),
-        );
+        sorted = [...members].sort((a, b) => totalPctFor(b) - totalPctFor(a));
         title = "Leaderboard — Prediction Skill";
         formatValue = (m) => {
-          const pct = parseFloat(m.accumulatedPct);
-          const sign = pct >= 0 ? "+" : "";
-          return `${sign}${pct.toFixed(2)}%`;
+          const total = totalPctFor(m);
+          const open = unrealizedPctByUserId.get(m.userId) ?? 0;
+          const sign = total >= 0 ? "+" : "";
+          const openSign = open >= 0 ? "+" : "";
+          return `${sign}${total.toFixed(2)}% (${openSign}${open.toFixed(2)}% open)`;
         };
         break;
 
       case "average":
         sorted = [...members]
-          .filter((m) => m.totalBetsSettled > 0)
+          .filter((m) => totalBetsFor(m) > 0)
           .sort((a, b) => {
-            const avgA = parseFloat(a.accumulatedPct) / a.totalBetsSettled;
-            const avgB = parseFloat(b.accumulatedPct) / b.totalBetsSettled;
+            const avgA = totalPctFor(a) / totalBetsFor(a);
+            const avgB = totalPctFor(b) / totalBetsFor(b);
             return avgB - avgA;
           });
         title = "Leaderboard — Average Per Bet";
         formatValue = (m) => {
-          const avg = parseFloat(m.accumulatedPct) / m.totalBetsSettled;
+          const bets = totalBetsFor(m);
+          const avg = totalPctFor(m) / bets;
+          const openBets = activeCountByUserId.get(m.userId) ?? 0;
+          const openAvg =
+            openBets > 0
+              ? (unrealizedPctByUserId.get(m.userId) ?? 0) / openBets
+              : 0;
           const sign = avg >= 0 ? "+" : "";
-          return `${sign}${avg.toFixed(2)}% (${m.totalBetsSettled} bets)`;
+          const openSign = openAvg >= 0 ? "+" : "";
+          return `${sign}${avg.toFixed(2)}% (${bets} bets, ${openSign}${openAvg.toFixed(2)}% open)`;
         };
         break;
 

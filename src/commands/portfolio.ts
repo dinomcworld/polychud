@@ -50,13 +50,16 @@ export function buildPortfolioView(
   activeBets: ActiveBet[],
   page: number,
 ): BaseMessageOptions {
-  const pctSign = stats.accumulatedPct >= 0 ? "+" : "";
-  const pctColor =
-    stats.accumulatedPct > 0
-      ? 0x00cc66
-      : stats.accumulatedPct < 0
-        ? 0xff4444
-        : 0x888888;
+  const totalPct = stats.accumulatedPct + stats.unrealizedPct;
+  const totalPnL = stats.netPnL + stats.unrealizedPnL;
+  const totalBets = stats.totalBetsSettled + stats.activeBetsCount;
+  const totalAvg = totalBets > 0 ? totalPct / totalBets : 0;
+
+  const pctColor = totalPct > 0 ? 0x00cc66 : totalPct < 0 ? 0xff4444 : 0x888888;
+
+  const signed = (n: number) => `${n >= 0 ? "+" : ""}${n.toLocaleString()}`;
+  const signedFixed = (n: number, d = 2) =>
+    `${n >= 0 ? "+" : ""}${n.toFixed(d)}`;
 
   const embed = new EmbedBuilder()
     .setTitle(`${target.displayName}'s Portfolio`)
@@ -75,19 +78,19 @@ export function buildPortfolioView(
       },
       {
         name: "Net P&L",
-        value: `${stats.netPnL >= 0 ? "+" : ""}${stats.netPnL.toLocaleString()} pts`,
+        value: `${signed(Math.round(totalPnL))} pts (${signed(Math.round(stats.unrealizedPnL))} open)`,
         inline: true,
       },
       {
         name: "Accumulated %",
-        value: `${pctSign}${stats.accumulatedPct.toFixed(2)}`,
+        value: `${signedFixed(totalPct)} (${signedFixed(stats.unrealizedPct)} open)`,
         inline: true,
       },
       {
         name: "Avg Per Bet",
         value:
-          stats.totalBetsSettled > 0
-            ? `${stats.accumulatedPct / stats.totalBetsSettled >= 0 ? "+" : ""}${(stats.accumulatedPct / stats.totalBetsSettled).toFixed(2)}`
+          totalBets > 0
+            ? `${signedFixed(totalAvg)} (${totalBets} bets)`
             : "N/A",
         inline: true,
       },

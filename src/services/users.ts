@@ -188,10 +188,13 @@ export async function getUserStats(discordId: string, guildId: string) {
     );
   const netPnL = Number(netRow?.net ?? 0);
 
-  // Mark-to-market value of open positions
+  // Mark-to-market value of open positions + unrealized P&L and pct.
+  const currentPriceExpr = sql`CASE WHEN ${bets.outcome} = 'yes' THEN ${markets.currentYesPrice} ELSE ${markets.currentNoPrice} END`;
   const [openRow] = await db
     .select({
-      openValue: sql<string>`COALESCE(SUM(${bets.potentialPayout} * CASE WHEN ${bets.outcome} = 'yes' THEN ${markets.currentYesPrice} ELSE ${markets.currentNoPrice} END), 0)`,
+      openValue: sql<string>`COALESCE(SUM(${bets.potentialPayout} * ${currentPriceExpr}), 0)`,
+      unrealizedPnL: sql<string>`COALESCE(SUM(${bets.potentialPayout} * ${currentPriceExpr} - ${bets.amount}), 0)`,
+      unrealizedPct: sql<string>`COALESCE(SUM(((${bets.potentialPayout} * ${currentPriceExpr} - ${bets.amount}) / ${bets.amount}) * 100), 0)`,
     })
     .from(bets)
     .innerJoin(markets, eq(bets.marketId, markets.id))
@@ -203,6 +206,8 @@ export async function getUserStats(discordId: string, guildId: string) {
       ),
     );
   const openValue = Number(openRow?.openValue ?? 0);
+  const unrealizedPnL = Number(openRow?.unrealizedPnL ?? 0);
+  const unrealizedPct = Number(openRow?.unrealizedPct ?? 0);
 
   return {
     pointsBalance: member.pointsBalance,
@@ -213,6 +218,8 @@ export async function getUserStats(discordId: string, guildId: string) {
     winRate,
     activeBetsCount: activeBets.length,
     netPnL,
+    unrealizedPnL,
+    unrealizedPct,
     openValue,
     portfolioValue: member.pointsBalance + openValue,
   };
