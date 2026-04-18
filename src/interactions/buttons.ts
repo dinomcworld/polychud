@@ -38,6 +38,7 @@ import {
   buildSearchResultsEmbed,
   buildSearchSelectMenu,
   computeSearchPages,
+  escapeMarkdown,
 } from "../ui/marketCard.js";
 import { requireGuildId } from "../utils/guards.js";
 import { logger } from "../utils/logger.js";
@@ -326,6 +327,15 @@ async function handleConfirm(interaction: ButtonInteraction) {
   }
 
   const pct = (result.oddsAtBet * 100).toFixed(1);
+  const eventSlug = gamma.events?.[0]?.slug ?? null;
+  const linkSlug = eventSlug || gamma.slug;
+  const marketUrl = linkSlug
+    ? `https://polymarket.com/event/${linkSlug}`
+    : "https://polymarket.com";
+  const rawMarketTitle = gamma.groupItemTitle
+    ? `${gamma.groupItemTitle} — ${gamma.question}`
+    : gamma.question;
+  const marketTitle = escapeMarkdown(rawMarketTitle);
   const embed = new EmbedBuilder()
     .setTitle("Bet Placed!")
     .setColor(0x00cc66)
@@ -335,6 +345,7 @@ async function handleConfirm(interaction: ButtonInteraction) {
     })
     .setDescription(
       [
+        `**Market:** [${marketTitle.length > 200 ? `${marketTitle.slice(0, 197)}...` : marketTitle}](${marketUrl})`,
         `**Outcome:** ${outcome.toUpperCase()} at ${pct}%`,
         `**Stake:** ${amount.toLocaleString()} pts`,
         `**Potential payout:** ${result.potentialPayout.toLocaleString()} pts`,
@@ -343,6 +354,11 @@ async function handleConfirm(interaction: ButtonInteraction) {
     )
     .setFooter({ text: `Bet #${result.betId}` })
     .setTimestamp();
+
+  const marketImage = gamma.image || gamma.icon || null;
+  if (marketImage) {
+    embed.setThumbnail(marketImage);
+  }
 
   await interaction.editReply({
     content: "Bet placed!",
