@@ -3,7 +3,7 @@ import * as cron from "node-cron";
 import { config } from "../config.js";
 import { db } from "../db/index.js";
 import { bets, guildMembers, markets } from "../db/schema.js";
-import { resolveEventBets, resolveMarketBets } from "../services/betting.js";
+import { resolveEventBets } from "../services/betting.js";
 import { getMarketByConditionId } from "../services/polymarket.js";
 import { logger } from "../utils/logger.js";
 

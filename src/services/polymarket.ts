@@ -320,7 +320,7 @@ export async function getMarketByConditionId(
   conditionId: string,
 ): Promise<GammaMarket | null> {
   if (!conditionId) return null;
-  const url = `${config.POLYMARKET_GAMMA_URL}/markets?conditionId=${encodeURIComponent(conditionId)}`;
+  const url = `${config.POLYMARKET_GAMMA_URL}/markets?condition_ids=${encodeURIComponent(conditionId)}`;
   const response = await fetchWithRetry(url);
   const raw = (await response.json()) as RawApiObject[];
   const [first] = raw ?? [];
