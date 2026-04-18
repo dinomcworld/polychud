@@ -118,10 +118,15 @@ export function buildPortfolioView(
   if (pageBets.length > 0) {
     const betLines = pageBets.map((bet) => {
       const question = bet.market
-        ? bet.market.question.length > 40
-          ? `${bet.market.question.slice(0, 37)}...`
+        ? bet.market.question.length > 70
+          ? `${bet.market.question.slice(0, 67)}...`
           : bet.market.question
         : `Market #${bet.marketId}`;
+
+      const eventSlug = bet.market?.event?.slug ?? null;
+      const titleLine = eventSlug
+        ? `[${question}](https://polymarket.com/event/${eventSlug})`
+        : question;
 
       const entryPrice = parseFloat(bet.oddsAtBet);
       const currentPrice = bet.market
@@ -137,7 +142,10 @@ export function buildPortfolioView(
       const pnlStr =
         unrealizedPnL >= 0 ? `+${unrealizedPnL}` : `${unrealizedPnL}`;
 
-      return `${bet.outcome.toUpperCase()} **${bet.amount}** pts on ${question} (${pnlStr} pts)`;
+      return [
+        `**${titleLine}**`,
+        `${bet.outcome.toUpperCase()} · **${bet.amount.toLocaleString()}** pts · P&L ${pnlStr} pts`,
+      ].join("\n");
     });
 
     const header =
@@ -147,7 +155,7 @@ export function buildPortfolioView(
 
     embed.addFields({
       name: header,
-      value: betLines.join("\n"),
+      value: betLines.join("\n\n"),
     });
   }
 
