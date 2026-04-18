@@ -118,20 +118,23 @@ export async function claimDaily(discordId: string, guildId: string) {
   const guild = await ensureGuildSettings(guildId);
   const now = new Date();
 
-  if (member.lastDailyClaim) {
-    const timeSinceClaim = now.getTime() - member.lastDailyClaim.getTime();
-    const twentyFourHours = 24 * 60 * 60 * 1000;
+  // Daily resets at UTC midnight: eligible if last claim was before today (UTC).
+  const startOfTodayUtc = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  const startOfTomorrowUtc = startOfTodayUtc + 24 * 60 * 60 * 1000;
 
-    if (timeSinceClaim < twentyFourHours) {
-      const nextClaim = new Date(
-        member.lastDailyClaim.getTime() + twentyFourHours,
-      );
-      return {
-        claimed: false as const,
-        nextClaim,
-        balance: member.pointsBalance,
-      };
-    }
+  if (
+    member.lastDailyClaim &&
+    member.lastDailyClaim.getTime() >= startOfTodayUtc
+  ) {
+    return {
+      claimed: false as const,
+      nextClaim: new Date(startOfTomorrowUtc),
+      balance: member.pointsBalance,
+    };
   }
 
   const newBalance = member.pointsBalance + guild.dailyBonus;
