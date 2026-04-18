@@ -369,7 +369,10 @@ export async function getBatchPrices(
 
   if (uncached.length > 0) {
     const url = `${config.POLYMARKET_CLOB_URL}/prices`;
-    const payload = uncached.map((id) => ({ token_id: id }));
+    const payload = uncached.flatMap((id) => [
+      { token_id: id, side: "BUY" },
+      { token_id: id, side: "SELL" },
+    ]);
     const response = await fetchWithRetry(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
