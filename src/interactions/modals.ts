@@ -83,7 +83,7 @@ async function handleBetModal(interaction: ModalSubmitInteraction) {
   }
 
   // Check active bet limits
-  const activeBets = await getUserActiveBets(interaction.user.id);
+  const activeBets = await getUserActiveBets(interaction.user.id, guildId);
   if (activeBets.length >= config.MAX_ACTIVE_BETS_PER_USER) {
     await interaction.editReply({
       content: `You already have ${config.MAX_ACTIVE_BETS_PER_USER} active bets. Close some first.`,
