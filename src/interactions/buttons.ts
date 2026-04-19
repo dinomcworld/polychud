@@ -22,6 +22,7 @@ import {
   closeBet,
   getBetById,
   getUserActiveBets,
+  getUserSettledBets,
   placeBet,
 } from "../services/betting.js";
 import { upsertStandaloneMarket } from "../services/markets.js";
@@ -76,8 +77,12 @@ export async function handleButton(interaction: ButtonInteraction) {
     await handleCloseBet(interaction);
   } else if (id.startsWith("bets_page_")) {
     await handleBetsPage(interaction);
+  } else if (id.startsWith("bets_toggle_")) {
+    await handleBetsToggle(interaction);
   } else if (id.startsWith("portfolio_page_")) {
     await handlePortfolioPage(interaction);
+  } else if (id.startsWith("portfolio_toggle_")) {
+    await handlePortfolioToggle(interaction);
   } else if (
     id.startsWith("show_search_resolved_") ||
     id.startsWith("hide_search_resolved_")
@@ -421,52 +426,110 @@ async function handleConfirm(interaction: ButtonInteraction) {
   });
 }
 
-async function handleBetsPage(interaction: ButtonInteraction) {
-  await interaction.deferUpdate();
-
-  // bets_page_{page}
-  const pageStr = interaction.customId.slice("bets_page_".length);
-  const page = parseInt(pageStr, 10);
-  if (Number.isNaN(page)) return;
-
+async function renderBetList(
+  interaction: ButtonInteraction,
+  mode: "active" | "settled",
+  page: number,
+) {
   const guildId = await requireGuildId(interaction);
   if (!guildId) return;
 
-  const activeBets = await getUserActiveBets(interaction.user.id, guildId);
-  if (activeBets.length === 0) {
-    await interaction.editReply({
-      content:
-        "You have no active bets. Use `/market search` to find markets and place bets!",
-      embeds: [],
-      components: [],
-    });
-    return;
-  }
+  const list =
+    mode === "active"
+      ? await getUserActiveBets(interaction.user.id, guildId)
+      : await getUserSettledBets(interaction.user.id, guildId);
 
-  const view = buildBetListView(activeBets, page);
+  const view = buildBetListView(list, page, mode);
+  await interaction.editReply(view);
+}
+
+async function handleBetsPage(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+
+  // bets_page_{mode}_{page} (legacy: bets_page_{page})
+  const rest = interaction.customId.slice("bets_page_".length);
+  const firstUnderscore = rest.indexOf("_");
+  let mode: "active" | "settled" = "active";
+  let pageStr = rest;
+  if (firstUnderscore >= 0) {
+    const prefix = rest.slice(0, firstUnderscore);
+    if (prefix === "active" || prefix === "settled") {
+      mode = prefix;
+      pageStr = rest.slice(firstUnderscore + 1);
+    }
+  }
+  const page = parseInt(pageStr, 10);
+  if (Number.isNaN(page)) return;
+
+  await renderBetList(interaction, mode, page);
+}
+
+async function handleBetsToggle(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  const target = interaction.customId.slice("bets_toggle_".length);
+  const mode: "active" | "settled" =
+    target === "settled" ? "settled" : "active";
+  await renderBetList(interaction, mode, 0);
+}
+
+async function renderPortfolio(
+  interaction: ButtonInteraction,
+  targetUserId: string,
+  mode: "active" | "settled",
+  page: number,
+) {
+  const guildId = await requireGuildId(interaction);
+  if (!guildId) return;
+
+  const target = await interaction.client.users.fetch(targetUserId);
+  const stats = await getUserStats(targetUserId, guildId);
+  const list =
+    mode === "active"
+      ? await getUserActiveBets(targetUserId, guildId)
+      : await getUserSettledBets(targetUserId, guildId);
+
+  const view = buildPortfolioView(target, stats, list, page, mode);
   await interaction.editReply(view);
 }
 
 async function handlePortfolioPage(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
 
-  // portfolio_page_{targetUserId}_{page}
+  // portfolio_page_{targetUserId}_{mode}_{page}
+  //   or legacy portfolio_page_{targetUserId}_{page}
   const rest = interaction.customId.slice("portfolio_page_".length);
+  const parts = rest.split("_");
+  const last = parts.pop();
+  if (!last) return;
+  const page = parseInt(last, 10);
+  if (Number.isNaN(page)) return;
+
+  let mode: "active" | "settled" = "active";
+  if (parts.length > 0) {
+    const maybeMode = parts[parts.length - 1];
+    if (maybeMode === "active" || maybeMode === "settled") {
+      mode = maybeMode;
+      parts.pop();
+    }
+  }
+  const targetUserId = parts.join("_");
+  if (!targetUserId) return;
+
+  await renderPortfolio(interaction, targetUserId, mode, page);
+}
+
+async function handlePortfolioToggle(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  // portfolio_toggle_{targetUserId}_{mode}
+  const rest = interaction.customId.slice("portfolio_toggle_".length);
   const lastUnderscore = rest.lastIndexOf("_");
   if (lastUnderscore < 0) return;
   const targetUserId = rest.slice(0, lastUnderscore);
-  const page = parseInt(rest.slice(lastUnderscore + 1), 10);
-  if (!targetUserId || Number.isNaN(page)) return;
-
-  const guildId = await requireGuildId(interaction);
-  if (!guildId) return;
-
-  const target = await interaction.client.users.fetch(targetUserId);
-  const stats = await getUserStats(targetUserId, guildId);
-  const activeBets = await getUserActiveBets(targetUserId, guildId);
-
-  const view = buildPortfolioView(target, stats, activeBets, page);
-  await interaction.editReply(view);
+  const modeStr = rest.slice(lastUnderscore + 1);
+  const mode: "active" | "settled" =
+    modeStr === "settled" ? "settled" : "active";
+  if (!targetUserId) return;
+  await renderPortfolio(interaction, targetUserId, mode, 0);
 }
 
 async function handleCloseBet(interaction: ButtonInteraction) {

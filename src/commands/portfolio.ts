@@ -7,13 +7,19 @@ import {
   SlashCommandBuilder,
   type User,
 } from "discord.js";
-import { getUserActiveBets } from "../services/betting.js";
+import {
+  getUserActiveBets,
+  type getUserSettledBets,
+} from "../services/betting.js";
 import { getUserStats } from "../services/users.js";
 import { requireGuildId } from "../utils/guards.js";
 import type { Command } from "./types.js";
 
 type ActiveBet = Awaited<ReturnType<typeof getUserActiveBets>>[number];
+type SettledBet = Awaited<ReturnType<typeof getUserSettledBets>>[number];
 type UserStats = Awaited<ReturnType<typeof getUserStats>>;
+
+export type PortfolioBetsMode = "active" | "settled";
 
 export const PORTFOLIO_BETS_PAGE_SIZE = 5;
 
@@ -39,7 +45,7 @@ export const portfolioCommand: Command = {
     const stats = await getUserStats(target.id, guildId);
     const activeBets = await getUserActiveBets(target.id, guildId);
 
-    const view = buildPortfolioView(target, stats, activeBets, 0);
+    const view = buildPortfolioView(target, stats, activeBets, 0, "active");
     await interaction.editReply(view);
   },
 };
@@ -47,8 +53,9 @@ export const portfolioCommand: Command = {
 export function buildPortfolioView(
   target: User,
   stats: UserStats,
-  activeBets: ActiveBet[],
+  bets: ActiveBet[] | SettledBet[],
   page: number,
+  mode: PortfolioBetsMode = "active",
 ): BaseMessageOptions {
   const totalPct = stats.accumulatedPct + stats.unrealizedPct;
   const totalPnL = stats.netPnL + stats.unrealizedPnL;
@@ -107,23 +114,26 @@ export function buildPortfolioView(
     )
     .setTimestamp();
 
-  const betsWithPnL = activeBets.map((bet) => {
+  const betsWithPnL = bets.map((bet) => {
     const entryPrice = parseFloat(bet.oddsAtBet);
-    const currentPrice = bet.market
-      ? parseFloat(
-          bet.outcome === "yes"
-            ? bet.market.currentYesPrice || "0.5"
-            : bet.market.currentNoPrice || "0.5",
-        )
-      : entryPrice;
-    const unrealizedPnL =
-      Math.floor(bet.amount * (currentPrice / entryPrice)) - bet.amount;
-    return { bet, unrealizedPnL };
+    let pnl: number;
+    if (mode === "active") {
+      const currentPrice = bet.market
+        ? parseFloat(
+            bet.outcome === "yes"
+              ? bet.market.currentYesPrice || "0.5"
+              : bet.market.currentNoPrice || "0.5",
+          )
+        : entryPrice;
+      pnl = Math.floor(bet.amount * (currentPrice / entryPrice)) - bet.amount;
+    } else {
+      const payout = (bet as SettledBet).actualPayout ?? 0;
+      pnl = payout - bet.amount;
+    }
+    return { bet, pnl };
   });
 
-  betsWithPnL.sort(
-    (a, b) => Math.abs(b.unrealizedPnL) - Math.abs(a.unrealizedPnL),
-  );
+  betsWithPnL.sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl));
 
   const totalPages = Math.max(
     1,
@@ -134,7 +144,7 @@ export function buildPortfolioView(
   const pageBets = betsWithPnL.slice(start, start + PORTFOLIO_BETS_PAGE_SIZE);
 
   if (pageBets.length > 0) {
-    const betLines = pageBets.map(({ bet, unrealizedPnL }) => {
+    const betLines = pageBets.map(({ bet, pnl }) => {
       const question = bet.market
         ? bet.market.question.length > 70
           ? `${bet.market.question.slice(0, 67)}...`
@@ -146,42 +156,72 @@ export function buildPortfolioView(
         ? `[${question}](https://polymarket.com/event/${eventSlug})`
         : question;
 
-      const pnlStr =
-        unrealizedPnL >= 0 ? `+${unrealizedPnL}` : `${unrealizedPnL}`;
+      const pnlStr = pnl >= 0 ? `+${pnl}` : `${pnl}`;
 
+      if (mode === "active") {
+        return [
+          `**${titleLine}**`,
+          `${bet.outcome.toUpperCase()} · **${bet.amount.toLocaleString()}** pts · P&L ${pnlStr} pts`,
+        ].join("\n");
+      }
+
+      const settled = bet as SettledBet;
+      const statusLabel =
+        settled.status === "won"
+          ? "WON"
+          : settled.status === "lost"
+            ? "LOST"
+            : settled.status === "closed_early"
+              ? "CLOSED"
+              : settled.status.toUpperCase();
       return [
         `**${titleLine}**`,
-        `${bet.outcome.toUpperCase()} · **${bet.amount.toLocaleString()}** pts · P&L ${pnlStr} pts`,
+        `${settled.outcome.toUpperCase()} · ${statusLabel} · **${settled.amount.toLocaleString()}** pts · P&L ${pnlStr} pts`,
       ].join("\n");
     });
 
+    const baseHeader = mode === "active" ? "Active Bets" : "Settled Bets";
     const header =
       totalPages > 1
-        ? `Active Bets (Page ${safePage + 1}/${totalPages})`
-        : "Active Bets";
+        ? `${baseHeader} (Page ${safePage + 1}/${totalPages})`
+        : baseHeader;
 
     embed.addFields({
       name: header,
       value: betLines.join("\n\n"),
     });
+  } else {
+    embed.addFields({
+      name: mode === "active" ? "Active Bets" : "Settled Bets",
+      value: mode === "active" ? "_No active bets._" : "_No settled bets yet._",
+    });
   }
 
   const components: ActionRowBuilder<ButtonBuilder>[] = [];
+  const nav = new ActionRowBuilder<ButtonBuilder>();
   if (totalPages > 1) {
-    const nav = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    nav.addComponents(
       new ButtonBuilder()
-        .setCustomId(`portfolio_page_${target.id}_${safePage - 1}`)
+        .setCustomId(`portfolio_page_${target.id}_${mode}_${safePage - 1}`)
         .setLabel("◀ Prev")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(safePage <= 0),
       new ButtonBuilder()
-        .setCustomId(`portfolio_page_${target.id}_${safePage + 1}`)
+        .setCustomId(`portfolio_page_${target.id}_${mode}_${safePage + 1}`)
         .setLabel("Next ▶")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(safePage >= totalPages - 1),
     );
-    components.push(nav);
   }
+  nav.addComponents(
+    new ButtonBuilder()
+      .setCustomId(
+        `portfolio_toggle_${target.id}_${mode === "active" ? "settled" : "active"}`,
+      )
+      .setLabel(mode === "active" ? "Show Settled" : "Show Active")
+      .setStyle(ButtonStyle.Secondary),
+  );
+  components.push(nav);
 
   return { embeds: [embed], components };
 }
