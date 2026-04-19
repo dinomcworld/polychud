@@ -20,6 +20,7 @@ import {
   buildSearchControlsRow,
   buildSearchResultsEmbed,
   buildSearchSelectMenu,
+  buildTrendingControlsRow,
   computeSearchPages,
   type SearchResultItem,
 } from "../ui/marketCard.js";
@@ -151,72 +152,44 @@ async function handleSearch(
   }
 }
 
+export const TRENDING_LIMIT = 50;
+
+export async function renderTrendingView(page = 0) {
+  const events = await getTrendingMarkets(TRENDING_LIMIT);
+  const searchItems = eventsToSearchItems(events);
+
+  if (searchItems.length === 0) {
+    return null;
+  }
+
+  const totalPages = computeSearchPages(searchItems, false);
+  const safePage = Math.min(Math.max(page, 0), totalPages - 1);
+  const embed = buildSearchResultsEmbed(
+    "Trending",
+    searchItems,
+    false,
+    safePage,
+  );
+  const selectMenu = buildSearchSelectMenu(searchItems, false, safePage);
+  const controls = buildTrendingControlsRow(safePage, totalPages);
+  return {
+    embeds: [embed],
+    components: controls ? [selectMenu, controls] : [selectMenu],
+  };
+}
+
 async function handleTrending(
   interaction: import("discord.js").ChatInputCommandInteraction,
 ) {
   await interaction.deferReply();
 
   try {
-    const events = await getTrendingMarkets(5);
-
-    // Build search items without DB upserts (cache only)
-    const searchItems: SearchResultItem[] = [];
-    for (const event of events) {
-      const eventStatus = event.closed
-        ? "closed"
-        : event.active
-          ? "active"
-          : "inactive";
-
-      if (event.markets.length > 1) {
-        const activeMarkets = event.markets.filter(
-          (m) => m.active && !m.closed,
-        );
-        const marketsToCheck =
-          activeMarkets.length > 0 ? activeMarkets : event.markets;
-        const [firstMarket] = marketsToCheck;
-        if (!firstMarket) continue;
-        const frontrunner = marketsToCheck.reduce((best, m) => {
-          const price = m.outcomePrices[0] ?? 0;
-          return price > (best.outcomePrices[0] ?? 0) ? m : best;
-        }, firstMarket);
-
-        const frontrunnerLabel = extractOutcomeLabel(
-          frontrunner.question,
-          frontrunner.groupItemTitle,
-        );
-        const pct = ((frontrunner.outcomePrices[0] ?? 0.5) * 100).toFixed(0);
-        searchItems.push({
-          conditionId: frontrunner.conditionId,
-          question: event.title,
-          yesPrice: frontrunner.outcomePrices[0] ?? 0.5,
-          outcomeLabel: `${frontrunnerLabel} ${pct}% · ${event.markets.length} outcomes`,
-          status: eventStatus,
-        });
-      } else {
-        for (const m of event.markets) {
-          searchItems.push({
-            conditionId: m.conditionId,
-            question: m.question,
-            yesPrice: m.outcomePrices[0] ?? 0.5,
-            outcomeLabel: m.groupItemTitle || null,
-            status: eventStatus,
-          });
-        }
-      }
-    }
-
-    if (searchItems.length === 0) {
+    const view = await renderTrendingView(0);
+    if (!view) {
       await interaction.editReply({ content: "No trending markets found." });
       return;
     }
-
-    const embed = buildSearchResultsEmbed("Trending", searchItems);
-    const selectMenu = buildSearchSelectMenu(searchItems);
-    await interaction.editReply({
-      embeds: [embed],
-      components: [selectMenu],
-    });
+    await interaction.editReply(view);
   } catch (err) {
     logger.error("Trending markets fetch failed:", err);
     await interaction.editReply({

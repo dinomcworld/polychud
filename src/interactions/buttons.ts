@@ -14,6 +14,7 @@ import {
   buildEventCardFromGamma,
   eventsToSearchItems,
   gammaMarketToCardData,
+  renderTrendingView,
 } from "../commands/market.js";
 import { buildPortfolioView } from "../commands/portfolio.js";
 import { config } from "../config.js";
@@ -84,6 +85,8 @@ export async function handleButton(interaction: ButtonInteraction) {
     await handleToggleSearchResolved(interaction);
   } else if (id.startsWith("search_page_")) {
     await handleSearchPage(interaction);
+  } else if (id.startsWith("trending_page_")) {
+    await handleTrendingPage(interaction);
   } else if (
     id.startsWith("show_resolved_") ||
     id.startsWith("hide_resolved_")
@@ -774,6 +777,34 @@ async function handleSearchPage(interaction: ButtonInteraction) {
     await renderSearchState(interaction, query, showResolved, page);
   } catch (err) {
     logger.error("Search page change failed:", err);
+    await interaction.followUp({
+      content: "Couldn't change page. Try again.",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+}
+
+async function handleTrendingPage(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  const page = parseInt(
+    interaction.customId.slice("trending_page_".length),
+    10,
+  );
+  if (Number.isNaN(page)) return;
+
+  try {
+    const view = await renderTrendingView(page);
+    if (!view) {
+      await interaction.editReply({
+        content: "No trending markets found.",
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+    await interaction.editReply(view);
+  } catch (err) {
+    logger.error("Trending page change failed:", err);
     await interaction.followUp({
       content: "Couldn't change page. Try again.",
       flags: MessageFlags.Ephemeral,

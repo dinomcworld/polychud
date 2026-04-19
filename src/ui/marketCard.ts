@@ -264,6 +264,26 @@ export function buildSearchControlsRow(
   return new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons);
 }
 
+export function buildTrendingControlsRow(
+  page: number,
+  totalPages: number,
+): ActionRowBuilder<ButtonBuilder> | null {
+  if (totalPages <= 1) return null;
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`trending_page_${page - 1}`)
+      .setLabel("◀ Prev")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page <= 0),
+    new ButtonBuilder()
+      .setCustomId(`trending_page_${page + 1}`)
+      .setLabel("Next ▶")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page >= totalPages - 1),
+  );
+  return row;
+}
+
 export function computeSearchPages(
   results: SearchResultItem[],
   showResolved: boolean,
