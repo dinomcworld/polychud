@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { config } from "../config.js";
 import { db } from "../db/index.js";
 import { bets, events, guildMembers, markets, users } from "../db/schema.js";
@@ -182,6 +182,30 @@ export async function getUserActiveBets(discordId: string, guildId?: string) {
   });
 
   return activeBets;
+}
+
+export async function getUserSettledBets(discordId: string, guildId?: string) {
+  const user = await db.query.users.findFirst({
+    where: eq(users.discordId, discordId),
+  });
+  if (!user) return [];
+
+  const conditions = [eq(bets.userId, user.id), ne(bets.status, "pending")];
+  if (guildId) {
+    conditions.push(eq(bets.guildId, guildId));
+  }
+
+  const settled = await db.query.bets.findMany({
+    where: and(...conditions),
+    with: { market: { with: { event: true } } },
+    orderBy: (bets, { desc }) => [
+      desc(bets.resolvedAt),
+      desc(bets.closedAt),
+      desc(bets.placedAt),
+    ],
+  });
+
+  return settled;
 }
 
 export async function getBetById(betId: number) {
