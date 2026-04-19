@@ -428,13 +428,15 @@ function eventsToSearchItems(gammaEvents: GammaEvent[]): SearchResultItem[] {
         frontrunner.question,
         frontrunner.groupItemTitle,
       );
-      const pct = ((frontrunner.outcomePrices[0] ?? 0.5) * 100).toFixed(0);
       items.push({
         conditionId: frontrunner.conditionId,
         question: event.title,
         yesPrice: frontrunner.outcomePrices[0] ?? 0.5,
-        outcomeLabel: `${frontrunnerLabel} ${pct}% · ${event.markets.length} outcomes`,
+        outcomeLabel: frontrunnerLabel,
         status: eventStatus,
+        eventSlug: event.slug ?? null,
+        volume24h: event.volume24hr ?? null,
+        outcomeCount: event.markets.length,
       });
     } else if (event.markets.length === 1) {
       const [m] = event.markets;
@@ -445,6 +447,8 @@ function eventsToSearchItems(gammaEvents: GammaEvent[]): SearchResultItem[] {
         yesPrice: m.outcomePrices[0] ?? 0.5,
         outcomeLabel: m.groupItemTitle || null,
         status: eventStatus,
+        eventSlug: event.slug ?? null,
+        volume24h: event.volume24hr ?? m.volume24hr ?? null,
       });
     }
   }

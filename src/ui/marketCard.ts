@@ -126,6 +126,9 @@ export interface SearchResultItem {
   yesPrice: number;
   outcomeLabel: string | null;
   status?: string;
+  eventSlug?: string | null;
+  volume24h?: number | null;
+  outcomeCount?: number;
 }
 
 export const SEARCH_PAGE_SIZE = 10;
@@ -155,22 +158,36 @@ export function buildSearchResultsEmbed(
 
   const lines = pageItems.map((r, i) => {
     const idx = start + i + 1;
-    const q = escapeMarkdown(
-      r.question.length > 60 ? `${r.question.slice(0, 57)}...` : r.question,
-    );
+    const trimmed =
+      r.question.length > 80 ? `${r.question.slice(0, 77)}...` : r.question;
+    const linkText = trimmed.replace(/\[/g, "(").replace(/\]/g, ")");
+    const titleLine = r.eventSlug
+      ? `**${idx}.** **[${linkText}](https://polymarket.com/event/${r.eventSlug})**`
+      : `**${idx}.** **${escapeMarkdown(trimmed)}**`;
 
-    if (r.status === "resolved" || r.status === "closed") {
-      const label = r.outcomeLabel ? `${escapeMarkdown(r.outcomeLabel)}: ` : "";
-      return `**${idx}.** ${label}${q} — *Resolved*`;
+    const meta: string[] = [];
+    const isResolved = r.status === "resolved" || r.status === "closed";
+
+    if (isResolved) {
+      meta.push("*Resolved*");
+      if (r.outcomeLabel) meta.push(escapeMarkdown(r.outcomeLabel));
+    } else if (r.outcomeCount && r.outcomeCount > 1) {
+      if (r.outcomeLabel) {
+        const pct = (r.yesPrice * 100).toFixed(0);
+        meta.push(`${escapeMarkdown(r.outcomeLabel)} **${pct}%**`);
+      }
+      meta.push(`${r.outcomeCount} outcomes`);
+    } else {
+      if (r.outcomeLabel) meta.push(escapeMarkdown(r.outcomeLabel));
+      const pct = (r.yesPrice * 100).toFixed(1);
+      meta.push(`**${pct}%** YES`);
     }
 
-    if (r.outcomeLabel?.includes(" outcomes")) {
-      return `**${idx}.** ${q} — ${escapeMarkdown(r.outcomeLabel)}`;
+    if (r.volume24h && r.volume24h > 0) {
+      meta.push(`${formatVolume(r.volume24h)} vol`);
     }
 
-    const label = r.outcomeLabel ? `${escapeMarkdown(r.outcomeLabel)}: ` : "";
-    const pct = (r.yesPrice * 100).toFixed(1);
-    return `**${idx}.** ${label}${q} — **${pct}%** YES`;
+    return `${titleLine}\n${meta.join(" \u00b7 ")}`;
   });
 
   const parts = [`${display.length} result${display.length !== 1 ? "s" : ""}`];
@@ -180,7 +197,7 @@ export function buildSearchResultsEmbed(
 
   return new EmbedBuilder()
     .setTitle(`Search: "${query}"`)
-    .setDescription(lines.join("\n"))
+    .setDescription(lines.join("\n\n"))
     .setColor(0x5865f2)
     .setFooter({ text: parts.join(" \u2022 ") });
 }
