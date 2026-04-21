@@ -10,6 +10,7 @@ import {
   TextInputStyle,
 } from "discord.js";
 import { buildBetListView } from "../commands/bet.js";
+import { buildLeaderboardView } from "../commands/leaderboard.js";
 import {
   buildEventCardFromGamma,
   eventsToSearchItems,
@@ -81,8 +82,12 @@ export async function handleButton(interaction: ButtonInteraction) {
     await handleBetsToggle(interaction);
   } else if (id.startsWith("portfolio_page_")) {
     await handlePortfolioPage(interaction);
+  } else if (id.startsWith("portfolio_refresh_")) {
+    await handlePortfolioRefresh(interaction);
   } else if (id.startsWith("portfolio_toggle_")) {
     await handlePortfolioToggle(interaction);
+  } else if (id.startsWith("leaderboard_refresh_")) {
+    await handleLeaderboardRefresh(interaction);
   } else if (
     id.startsWith("show_search_resolved_") ||
     id.startsWith("hide_search_resolved_")
@@ -516,6 +521,38 @@ async function handlePortfolioPage(interaction: ButtonInteraction) {
   if (!targetUserId) return;
 
   await renderPortfolio(interaction, targetUserId, mode, page);
+}
+
+async function handlePortfolioRefresh(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  // portfolio_refresh_{targetUserId}_{mode}_{page}
+  const rest = interaction.customId.slice("portfolio_refresh_".length);
+  const parts = rest.split("_");
+  const last = parts.pop();
+  if (!last) return;
+  const page = parseInt(last, 10);
+  if (Number.isNaN(page)) return;
+
+  const maybeMode = parts.pop();
+  const mode: "active" | "settled" =
+    maybeMode === "settled" ? "settled" : "active";
+  const targetUserId = parts.join("_");
+  if (!targetUserId) return;
+
+  await renderPortfolio(interaction, targetUserId, mode, page);
+}
+
+async function handleLeaderboardRefresh(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  // leaderboard_refresh_{sort}
+  const sort = interaction.customId.slice("leaderboard_refresh_".length);
+  const guildId = await requireGuildId(interaction);
+  if (!guildId) return;
+  const view = await buildLeaderboardView(
+    guildId,
+    sort as import("../commands/leaderboard.js").LeaderboardSort,
+  );
+  await interaction.editReply(view);
 }
 
 async function handlePortfolioToggle(interaction: ButtonInteraction) {

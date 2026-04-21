@@ -220,6 +220,10 @@ export function buildPortfolioView(
       )
       .setLabel(mode === "active" ? "Show Settled" : "Show Active")
       .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`portfolio_refresh_${target.id}_${mode}_${safePage}`)
+      .setLabel("Refresh")
+      .setStyle(ButtonStyle.Secondary),
   );
   components.push(nav);
 
