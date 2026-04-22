@@ -32,6 +32,7 @@ const envSchema = z.object({
   DEFAULT_DAILY_BONUS: z.coerce.number().int().positive().default(100),
   MAX_ACTIVE_BETS_PER_USER: z.coerce.number().int().positive().default(10),
   MAX_ACTIVE_BETS_PER_MARKET: z.coerce.number().int().positive().default(3),
+  MAX_PAYOUT_MULTIPLIER: z.coerce.number().positive().default(20),
 
   // Logging
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),

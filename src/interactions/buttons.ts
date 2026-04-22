@@ -583,9 +583,9 @@ export async function showCloseBetPreview(
     | import("discord.js").StringSelectMenuInteraction,
   betId: number,
 ) {
-  // Public by design: close preview + result are visible to everyone so
-  // others can see the outcome. Ownership is still enforced in the service.
-  await interaction.deferReply();
+  // Preview is ephemeral (only the bettor sees the confirm/cancel prompt).
+  // The final "Bet Closed" card is posted publicly as a follow-up.
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const guildId = await requireGuildId(interaction);
   if (!guildId) return;
@@ -790,6 +790,10 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
   const embed = new EmbedBuilder()
     .setTitle("Bet Closed")
     .setColor(result.profit >= 0 ? 0x00cc66 : 0xff4444)
+    .setAuthor({
+      name: interaction.user.displayName,
+      iconURL: interaction.user.displayAvatarURL(),
+    })
     .setDescription(
       [
         resultMarketLine,
@@ -802,10 +806,27 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
     .setFooter({ text: `Bet #${betId}` })
     .setTimestamp();
 
+  try {
+    const closedBet = await getBetById(betId);
+    const conditionId = closedBet?.market?.polymarketConditionId;
+    if (conditionId) {
+      const gamma =
+        getCachedMarket(conditionId) ||
+        (await getMarketByConditionId(conditionId));
+      const image = gamma?.image || gamma?.icon;
+      if (image) embed.setThumbnail(image);
+    }
+  } catch (err) {
+    logger.warn("Failed to attach thumbnail to close card", { err });
+  }
+
   await interaction.editReply({
-    embeds: [embed],
+    content: "Bet closed.",
+    embeds: [],
     components: [],
   });
+
+  await interaction.followUp({ embeds: [embed] });
 }
 
 async function renderSearchState(
