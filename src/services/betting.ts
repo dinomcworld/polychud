@@ -86,7 +86,9 @@ export async function placeBet(
     };
   }
 
-  const potentialPayout = Math.floor(amount / price);
+  const rawPayout = amount / price;
+  const cap = amount * config.MAX_PAYOUT_MULTIPLIER;
+  const potentialPayout = Math.floor(Math.min(rawPayout, cap));
 
   // Atomic transaction: lock guild_members row, check balance, deduct, insert bet
   try {
@@ -346,9 +348,9 @@ export async function closeBet(
 
       const currentPrice = await getMidpointPrice(tokenId);
       const entryPrice = parseFloat(lockedBet.oddsAtBet);
-      const cashOutAmount = Math.floor(
-        lockedBet.amount * (currentPrice / entryPrice),
-      );
+      const rawCashOut = lockedBet.amount * (currentPrice / entryPrice);
+      const cashOutCap = lockedBet.amount * config.MAX_PAYOUT_MULTIPLIER;
+      const cashOutAmount = Math.floor(Math.min(rawCashOut, cashOutCap));
       const priceDelta = currentPrice - entryPrice;
 
       const now = new Date();
