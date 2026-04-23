@@ -119,18 +119,9 @@ async function runResolutionCheck() {
           `Market "${market.question}" resolved: ${winningOutcome} wins`,
         );
 
-        // Update market status
-        await db
-          .update(markets)
-          .set({
-            status: "resolved",
-            currentYesPrice: String(prices[0]),
-            currentNoPrice: String(prices[1]),
-            updatedAt: new Date(),
-          })
-          .where(eq(markets.id, market.id));
-
-        // Resolve at the event level (handles both single- and multi-outcome events)
+        // Resolve at the event level (handles both single- and multi-outcome events).
+        // resolveMarketBets owns the markets.status + final-price write, so a
+        // crash before completion leaves the market re-picked next cycle.
         if (!processedEvents.has(market.eventId)) {
           processedEvents.add(market.eventId);
           const result = await resolveEventBets(market.eventId);
@@ -185,12 +176,6 @@ async function handleCancelledMarket(marketId: number) {
         })
         .where(eq(bets.id, bet.id));
 
-      // Credit back the original stake
-      await tx
-        .update(markets)
-        .set({ status: "cancelled", updatedAt: now })
-        .where(eq(markets.id, marketId));
-
       // Give points back to the guild member for this user+guild
       await tx
         .update(guildMembers)
@@ -206,6 +191,14 @@ async function handleCancelledMarket(marketId: number) {
         );
     });
   }
+
+  // Mark market cancelled once after all refunds succeed. If the loop above
+  // crashed midway, the market keeps its prior status so the next resolver
+  // cycle re-picks the remaining pending bets.
+  await db
+    .update(markets)
+    .set({ status: "cancelled", updatedAt: now })
+    .where(eq(markets.id, marketId));
 
   logger.info(
     `Refunded ${pendingBets.length} bets for cancelled market ${marketId}`,

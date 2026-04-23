@@ -37,32 +37,6 @@ export async function placeBet(
   if (market.status !== "active")
     return { success: false, error: "This market is no longer active." };
 
-  // Check active bet limits
-  const userActiveBets = await db.query.bets.findMany({
-    where: and(
-      eq(bets.userId, user.id),
-      eq(bets.guildId, guildId),
-      eq(bets.status, "pending"),
-    ),
-  });
-
-  if (userActiveBets.length >= config.MAX_ACTIVE_BETS_PER_USER) {
-    return {
-      success: false,
-      error: `You already have ${config.MAX_ACTIVE_BETS_PER_USER} active bets. Close some before placing new ones.`,
-    };
-  }
-
-  const userBetsOnMarket = userActiveBets.filter(
-    (b) => b.marketId === marketId,
-  );
-  if (userBetsOnMarket.length >= config.MAX_ACTIVE_BETS_PER_MARKET) {
-    return {
-      success: false,
-      error: `You already have ${config.MAX_ACTIVE_BETS_PER_MARKET} active bet(s) on this market.`,
-    };
-  }
-
   // Fetch fresh price
   const tokenId = outcome === "yes" ? market.yesTokenId : market.noTokenId;
   if (!tokenId) {
@@ -90,7 +64,9 @@ export async function placeBet(
   const cap = amount * config.MAX_PAYOUT_MULTIPLIER;
   const potentialPayout = Math.floor(Math.min(rawPayout, cap));
 
-  // Atomic transaction: lock guild_members row, check balance, deduct, insert bet
+  // Atomic transaction: lock guild_members row, check limits + balance, deduct,
+  // insert bet. The lock on guildMembers serializes concurrent bets from the
+  // same user+guild so the active-bet counts below are accurate under bursts.
   try {
     const result = await db.transaction(async (tx) => {
       // Lock guild member row
@@ -100,9 +76,35 @@ export async function placeBet(
         .where(eq(guildMembers.id, member.id))
         .for("update");
 
-      if (!lockedMember || lockedMember.pointsBalance < amount) {
+      if (!lockedMember) throw new Error("Member not found.");
+
+      // Under the lock, count active bets (safe from TOCTOU bursts)
+      const userActiveBets = await tx.query.bets.findMany({
+        where: and(
+          eq(bets.userId, user.id),
+          eq(bets.guildId, guildId),
+          eq(bets.status, "pending"),
+        ),
+      });
+
+      if (userActiveBets.length >= config.MAX_ACTIVE_BETS_PER_USER) {
         throw new Error(
-          `Insufficient balance. You have ${lockedMember?.pointsBalance ?? 0} points.`,
+          `You already have ${config.MAX_ACTIVE_BETS_PER_USER} active bets. Close some before placing new ones.`,
+        );
+      }
+
+      const betsOnMarket = userActiveBets.filter(
+        (b) => b.marketId === marketId,
+      ).length;
+      if (betsOnMarket >= config.MAX_ACTIVE_BETS_PER_MARKET) {
+        throw new Error(
+          `You already have ${config.MAX_ACTIVE_BETS_PER_MARKET} active bet(s) on this market.`,
+        );
+      }
+
+      if (lockedMember.pointsBalance < amount) {
+        throw new Error(
+          `Insufficient balance. You have ${lockedMember.pointsBalance} points.`,
         );
       }
 
@@ -137,17 +139,6 @@ export async function placeBet(
         newBalance: lockedMember.pointsBalance - amount,
       };
     });
-
-    // Update market prices in DB
-    const yesPrice = outcome === "yes" ? price : 1 - price;
-    await db
-      .update(markets)
-      .set({
-        currentYesPrice: String(yesPrice),
-        currentNoPrice: String(1 - yesPrice),
-        updatedAt: new Date(),
-      })
-      .where(eq(markets.id, marketId));
 
     logger.info(
       `bet placed: betId=${result.betId} user=${discordId} guild=${guildId} marketId=${marketId} outcome=${outcome} stake=${amount} entry=${price.toFixed(4)} payout=${potentialPayout} balance=${result.newBalance}`,
@@ -513,11 +504,14 @@ export async function resolveMarketBets(
     settledCount++;
   }
 
-  // Mark market as resolved
+  // Mark market as resolved AFTER all bets settle. If we crash mid-loop the
+  // market keeps its prior status so the resolver re-picks it up next cycle.
   await db
     .update(markets)
     .set({
       status: "resolved",
+      currentYesPrice: winningOutcome === "yes" ? "1" : "0",
+      currentNoPrice: winningOutcome === "yes" ? "0" : "1",
       updatedAt: new Date(),
     })
     .where(eq(markets.id, marketId));
