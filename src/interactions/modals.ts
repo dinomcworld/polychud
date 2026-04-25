@@ -14,8 +14,10 @@ import {
   getMidpointPrice,
 } from "../services/polymarket.js";
 import { ensureGuildSettings, ensureUser } from "../services/users.js";
+import { COLORS } from "../ui/colors.js";
 import { requireGuildId } from "../utils/guards.js";
 import { logger } from "../utils/logger.js";
+import { betModal, confirmBet } from "./customIds.js";
 
 export async function handleModal(interaction: ModalSubmitInteraction) {
   const id = interaction.customId;
@@ -24,7 +26,7 @@ export async function handleModal(interaction: ModalSubmitInteraction) {
     `modal: user=${interaction.user.id} guild=${interaction.guildId ?? "dm"} customId=${id}`,
   );
 
-  if (id.startsWith("betmodal_")) {
+  if (id.startsWith(betModal.prefix)) {
     await handleBetModal(interaction);
   } else {
     await interaction.reply({
@@ -37,12 +39,12 @@ export async function handleModal(interaction: ModalSubmitInteraction) {
 async function handleBetModal(interaction: ModalSubmitInteraction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  // betmodal_{conditionId}_{outcome}
-  const [, conditionId, outcome] = interaction.customId.split("_") as [
-    string,
-    string,
-    "yes" | "no",
-  ];
+  const decoded = betModal.decode(interaction.customId);
+  if (!decoded) {
+    await interaction.editReply({ content: "Invalid bet modal." });
+    return;
+  }
+  const { conditionId, outcome } = decoded;
 
   const amountStr = interaction.fields.getTextInputValue("bet_amount").trim();
   const amount = parseInt(amountStr, 10);
@@ -135,7 +137,7 @@ async function handleBetModal(interaction: ModalSubmitInteraction) {
   // Show confirmation — pass conditionId in confirm button
   const embed = new EmbedBuilder()
     .setTitle("Confirm your bet")
-    .setColor(0xffaa00)
+    .setColor(COLORS.ORANGE)
     .setDescription(
       [
         `**Market:** ${gamma.question}`,
@@ -148,7 +150,7 @@ async function handleBetModal(interaction: ModalSubmitInteraction) {
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`confirm_${conditionId}_${outcome}_${amount}`)
+      .setCustomId(confirmBet.encode(conditionId, outcome, amount))
       .setLabel("Confirm")
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()

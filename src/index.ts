@@ -1,8 +1,5 @@
 import {
-  ActionRowBuilder,
   ActivityType,
-  ButtonBuilder,
-  ButtonStyle,
   Client,
   Collection,
   Events,
@@ -27,6 +24,11 @@ import { startPoller, stopPoller } from "./jobs/poller.js";
 // Import jobs
 import { startResolver, stopResolver } from "./jobs/resolver.js";
 import { consumeNewSettlements } from "./services/betting.js";
+import {
+  getCachedMarket,
+  getMarketByConditionId,
+} from "./services/polymarket.js";
+import { buildSettlementsEmbed } from "./ui/settlementCard.js";
 import { logger } from "./utils/logger.js";
 
 // Build command collection
@@ -105,10 +107,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 /**
- * Pull-on-interact: after a slash command, quietly check whether any of the
- * user's bets have settled since we last told them, and if so, tack on an
- * ephemeral followUp. No push notifications — the user only hears about it
- * when they interact on their own.
+ * Pull-on-interact: after a slash command, check whether any of the user's
+ * bets have been auto-settled (won/lost/cancelled) since we last told them,
+ * and if so, post a public followUp card listing them. Self-closed bets
+ * (closed_early) are excluded — the user already saw the close card.
  */
 async function maybeNotifySettlements(
   interaction: import("discord.js").ChatInputCommandInteraction,
@@ -122,19 +124,28 @@ async function maybeNotifySettlements(
     );
     if (result.count === 0) return;
 
-    const sign = result.netPts >= 0 ? "+" : "";
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`portfolio_toggle_${interaction.user.id}_settled`)
-        .setLabel("Show Settled")
-        .setStyle(ButtonStyle.Secondary),
-    );
+    let thumbnailUrl: string | null = null;
+    const first = result.settlements[0];
+    if (first?.marketConditionId) {
+      try {
+        const gamma =
+          getCachedMarket(first.marketConditionId) ||
+          (await getMarketByConditionId(first.marketConditionId));
+        thumbnailUrl = gamma?.image || gamma?.icon || null;
+      } catch (err) {
+        logger.warn("Failed to fetch thumbnail for settlement card", { err });
+      }
+    }
 
-    await interaction.followUp({
-      content: `📬 ${result.count} bet${result.count === 1 ? "" : "s"} settled while you were away (${sign}${result.netPts.toLocaleString()} pts).`,
-      components: [row],
-      flags: MessageFlags.Ephemeral,
+    const embed = buildSettlementsEmbed({
+      user: interaction.user,
+      settlements: result.settlements,
+      netPts: result.netPts,
+      count: result.count,
+      thumbnailUrl,
     });
+
+    await interaction.followUp({ embeds: [embed] });
   } catch (err) {
     logger.error("settlement notice failed:", err);
   }

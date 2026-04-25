@@ -9,6 +9,7 @@ import {
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { bets, guildMembers, markets } from "../db/schema.js";
+import { COLORS } from "../ui/colors.js";
 import { requireGuildId } from "../utils/guards.js";
 import type { Command } from "./types.js";
 
@@ -223,7 +224,7 @@ export async function buildLeaderboardView(
   const embed = new EmbedBuilder()
     .setTitle(title)
     .setDescription(lines.join("\n"))
-    .setColor(0xffd700)
+    .setColor(COLORS.GOLD)
     .setFooter({
       text: `${sorted.length} player${sorted.length !== 1 ? "s" : ""} in this server`,
     })

@@ -1,4 +1,5 @@
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder } from "discord.js";
+import { COLORS } from "../ui/colors.js";
 import type { Command } from "./types.js";
 
 export const helpCommand: Command = {
@@ -9,7 +10,7 @@ export const helpCommand: Command = {
   async execute(interaction) {
     const embed = new EmbedBuilder()
       .setTitle("Polychud — Virtual Prediction Market Betting")
-      .setColor(0x5865f2)
+      .setColor(COLORS.BLUE)
       .setDescription(
         "Bet on real [Polymarket](https://polymarket.com) prediction markets using **virtual points**. " +
           "No real money involved — just bragging rights and leaderboard glory.",

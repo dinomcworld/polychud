@@ -1,23 +1,14 @@
 import {
   ActionRowBuilder,
-  ButtonBuilder,
   type ButtonInteraction,
-  ButtonStyle,
   EmbedBuilder,
   MessageFlags,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
-import { buildBetListView } from "../commands/bet.js";
 import { buildLeaderboardView } from "../commands/leaderboard.js";
-import {
-  buildEventCardFromGamma,
-  eventsToSearchItems,
-  gammaMarketToCardData,
-  renderTrendingView,
-} from "../commands/market.js";
-import { buildPortfolioView } from "../commands/portfolio.js";
+import { renderTrendingView } from "../commands/market.js";
 import { config } from "../config.js";
 import {
   closeBet,
@@ -35,11 +26,19 @@ import {
   searchMarkets,
 } from "../services/polymarket.js";
 import { ensureUser, getUserStats } from "../services/users.js";
+import { buildBetListView } from "../ui/betList.js";
+import {
+  buildClosePreviewComponents,
+  buildClosePreviewEmbed,
+} from "../ui/closeCard.js";
+import { COLORS } from "../ui/colors.js";
 import {
   buildBackToEventButton,
   buildEventButtons,
+  buildEventCardFromGamma,
   buildEventEmbed,
   buildEventSelectMenu,
+  eventsToSearchItems,
 } from "../ui/eventCard.js";
 import {
   buildMarketButtons,
@@ -49,13 +48,73 @@ import {
   buildSearchSelectMenu,
   computeSearchPages,
   escapeMarkdown,
+  gammaMarketToCardData,
 } from "../ui/marketCard.js";
+import { buildPortfolioView } from "../ui/portfolio.js";
+import { truncate } from "../ui/text.js";
 import {
   rememberMarketMessage,
   takeMarketMessage,
 } from "../utils/betContext.js";
 import { requireGuildId } from "../utils/guards.js";
 import { logger } from "../utils/logger.js";
+import {
+  betModal,
+  betsPage,
+  betsToggle,
+  confirmBet,
+  confirmClose,
+  portfolioPage,
+  portfolioRefresh,
+  portfolioToggle,
+  searchPage,
+  searchResolvedToggle,
+} from "./customIds.js";
+
+type ButtonHandler = (interaction: ButtonInteraction) => Promise<void>;
+
+async function handleCancel(interaction: ButtonInteraction) {
+  await interaction.update({
+    content: "Cancelled.",
+    embeds: [],
+    components: [],
+  });
+}
+
+const EXACT_ROUTES: Record<string, ButtonHandler> = {
+  cancel_bet: handleCancel,
+  cancel_close: handleCancel,
+};
+
+/** Prefix → handler. Sorted at module load by descending prefix length so
+ * `confirm_close_` wins over `confirm_` and `refresh_event_` wins over
+ * `refresh_`, regardless of declaration order here. */
+const PREFIX_ROUTES: Array<[string, ButtonHandler]> = [
+  ["bet_yes_", handleBetButton],
+  ["bet_no_", handleBetButton],
+  ["refresh_event_", handleRefreshEvent],
+  ["refresh_", handleRefresh],
+  [confirmClose.prefix, handleConfirmClose],
+  [confirmBet.prefix, handleConfirm],
+  ["close_bet_", handleCloseBet],
+  [betsPage.prefix, handleBetsPage],
+  [betsToggle.prefix, handleBetsToggle],
+  [portfolioPage.prefix, handlePortfolioPage],
+  [portfolioRefresh.prefix, handlePortfolioRefresh],
+  [portfolioToggle.prefix, handlePortfolioToggle],
+  ["leaderboard_refresh_", handleLeaderboardRefresh],
+  [searchResolvedToggle.showPrefix, handleToggleSearchResolved],
+  [searchResolvedToggle.hidePrefix, handleToggleSearchResolved],
+  [searchPage.prefix, handleSearchPage],
+  ["trending_page_", handleTrendingPage],
+  ["show_resolved_", handleToggleResolved],
+  ["hide_resolved_", handleToggleResolved],
+  ["back_event_", handleBackToEvent],
+];
+
+const SORTED_ROUTES: ReadonlyArray<[string, ButtonHandler]> = [
+  ...PREFIX_ROUTES,
+].sort(([a], [b]) => b.length - a.length);
 
 export async function handleButton(interaction: ButtonInteraction) {
   const id = interaction.customId;
@@ -64,58 +123,23 @@ export async function handleButton(interaction: ButtonInteraction) {
     `button: user=${interaction.user.id} guild=${interaction.guildId ?? "dm"} customId=${id}`,
   );
 
-  if (id.startsWith("bet_yes_") || id.startsWith("bet_no_")) {
-    await handleBetButton(interaction);
-  } else if (id.startsWith("refresh_event_")) {
-    await handleRefreshEvent(interaction);
-  } else if (id.startsWith("refresh_")) {
-    await handleRefresh(interaction);
-  } else if (id.startsWith("confirm_close_")) {
-    await handleConfirmClose(interaction);
-  } else if (id.startsWith("confirm_")) {
-    await handleConfirm(interaction);
-  } else if (id.startsWith("close_bet_")) {
-    await handleCloseBet(interaction);
-  } else if (id.startsWith("bets_page_")) {
-    await handleBetsPage(interaction);
-  } else if (id.startsWith("bets_toggle_")) {
-    await handleBetsToggle(interaction);
-  } else if (id.startsWith("portfolio_page_")) {
-    await handlePortfolioPage(interaction);
-  } else if (id.startsWith("portfolio_refresh_")) {
-    await handlePortfolioRefresh(interaction);
-  } else if (id.startsWith("portfolio_toggle_")) {
-    await handlePortfolioToggle(interaction);
-  } else if (id.startsWith("leaderboard_refresh_")) {
-    await handleLeaderboardRefresh(interaction);
-  } else if (
-    id.startsWith("show_search_resolved_") ||
-    id.startsWith("hide_search_resolved_")
-  ) {
-    await handleToggleSearchResolved(interaction);
-  } else if (id.startsWith("search_page_")) {
-    await handleSearchPage(interaction);
-  } else if (id.startsWith("trending_page_")) {
-    await handleTrendingPage(interaction);
-  } else if (
-    id.startsWith("show_resolved_") ||
-    id.startsWith("hide_resolved_")
-  ) {
-    await handleToggleResolved(interaction);
-  } else if (id.startsWith("back_event_")) {
-    await handleBackToEvent(interaction);
-  } else if (id === "cancel_bet" || id === "cancel_close") {
-    await interaction.update({
-      content: "Cancelled.",
-      embeds: [],
-      components: [],
-    });
-  } else {
-    await interaction.reply({
-      content: "This button isn't implemented yet.",
-      flags: MessageFlags.Ephemeral,
-    });
+  const exact = EXACT_ROUTES[id];
+  if (exact) {
+    await exact(interaction);
+    return;
   }
+
+  for (const [prefix, handler] of SORTED_ROUTES) {
+    if (id.startsWith(prefix)) {
+      await handler(interaction);
+      return;
+    }
+  }
+
+  await interaction.reply({
+    content: "This button isn't implemented yet.",
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 async function handleBetButton(interaction: ButtonInteraction) {
@@ -135,7 +159,7 @@ async function handleBetButton(interaction: ButtonInteraction) {
   );
 
   const modal = new ModalBuilder()
-    .setCustomId(`betmodal_${conditionId}_${outcome}`)
+    .setCustomId(betModal.encode(conditionId, outcome))
     .setTitle(`Place a ${outcome.toUpperCase()} bet`);
 
   const amountInput = new TextInputBuilder()
@@ -307,11 +331,9 @@ async function handleBackToEvent(interaction: ButtonInteraction) {
 async function handleConfirm(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
 
-  // confirm_{conditionId}_{outcome}_{amount}
-  const [, conditionId, outcome, amountStr] = interaction.customId.split(
-    "_",
-  ) as [string, string, "yes" | "no", string];
-  const amount = parseInt(amountStr, 10);
+  const decoded = confirmBet.decode(interaction.customId);
+  if (!decoded) return;
+  const { conditionId, outcome, amount } = decoded;
 
   // Fetch market from Gamma to upsert
   let gamma = getCachedMarket(conditionId);
@@ -374,14 +396,14 @@ async function handleConfirm(interaction: ButtonInteraction) {
   const marketTitle = escapeMarkdown(rawMarketTitle);
   const embed = new EmbedBuilder()
     .setTitle("Bet Placed!")
-    .setColor(0x00cc66)
+    .setColor(COLORS.GREEN)
     .setAuthor({
       name: interaction.user.displayName,
       iconURL: interaction.user.displayAvatarURL(),
     })
     .setDescription(
       [
-        `**Market:** [${marketTitle.length > 200 ? `${marketTitle.slice(0, 197)}...` : marketTitle}](${marketUrl})`,
+        `**Market:** [${truncate(marketTitle, 200)}](${marketUrl})`,
         `**Outcome:** ${outcome.toUpperCase()} at ${pct}%`,
         `**Stake:** ${amount.toLocaleString()} pts`,
         `**Potential payout:** ${result.potentialPayout.toLocaleString()} pts`,
@@ -450,31 +472,16 @@ async function renderBetList(
 
 async function handleBetsPage(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-
-  // bets_page_{mode}_{page} (legacy: bets_page_{page})
-  const rest = interaction.customId.slice("bets_page_".length);
-  const firstUnderscore = rest.indexOf("_");
-  let mode: "active" | "settled" = "active";
-  let pageStr = rest;
-  if (firstUnderscore >= 0) {
-    const prefix = rest.slice(0, firstUnderscore);
-    if (prefix === "active" || prefix === "settled") {
-      mode = prefix;
-      pageStr = rest.slice(firstUnderscore + 1);
-    }
-  }
-  const page = parseInt(pageStr, 10);
-  if (Number.isNaN(page)) return;
-
-  await renderBetList(interaction, mode, page);
+  const decoded = betsPage.decode(interaction.customId);
+  if (!decoded) return;
+  await renderBetList(interaction, decoded.mode, decoded.page);
 }
 
 async function handleBetsToggle(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  const target = interaction.customId.slice("bets_toggle_".length);
-  const mode: "active" | "settled" =
-    target === "settled" ? "settled" : "active";
-  await renderBetList(interaction, mode, 0);
+  const decoded = betsToggle.decode(interaction.customId);
+  if (!decoded) return;
+  await renderBetList(interaction, decoded.mode, 0);
 }
 
 async function renderPortfolio(
@@ -499,47 +506,26 @@ async function renderPortfolio(
 
 async function handlePortfolioPage(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-
-  // portfolio_page_{targetUserId}_{mode}_{page}
-  //   or legacy portfolio_page_{targetUserId}_{page}
-  const rest = interaction.customId.slice("portfolio_page_".length);
-  const parts = rest.split("_");
-  const last = parts.pop();
-  if (!last) return;
-  const page = parseInt(last, 10);
-  if (Number.isNaN(page)) return;
-
-  let mode: "active" | "settled" = "active";
-  if (parts.length > 0) {
-    const maybeMode = parts[parts.length - 1];
-    if (maybeMode === "active" || maybeMode === "settled") {
-      mode = maybeMode;
-      parts.pop();
-    }
-  }
-  const targetUserId = parts.join("_");
-  if (!targetUserId) return;
-
-  await renderPortfolio(interaction, targetUserId, mode, page);
+  const decoded = portfolioPage.decode(interaction.customId);
+  if (!decoded) return;
+  await renderPortfolio(
+    interaction,
+    decoded.targetUserId,
+    decoded.mode,
+    decoded.page,
+  );
 }
 
 async function handlePortfolioRefresh(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // portfolio_refresh_{targetUserId}_{mode}_{page}
-  const rest = interaction.customId.slice("portfolio_refresh_".length);
-  const parts = rest.split("_");
-  const last = parts.pop();
-  if (!last) return;
-  const page = parseInt(last, 10);
-  if (Number.isNaN(page)) return;
-
-  const maybeMode = parts.pop();
-  const mode: "active" | "settled" =
-    maybeMode === "settled" ? "settled" : "active";
-  const targetUserId = parts.join("_");
-  if (!targetUserId) return;
-
-  await renderPortfolio(interaction, targetUserId, mode, page);
+  const decoded = portfolioRefresh.decode(interaction.customId);
+  if (!decoded) return;
+  await renderPortfolio(
+    interaction,
+    decoded.targetUserId,
+    decoded.mode,
+    decoded.page,
+  );
 }
 
 async function handleLeaderboardRefresh(interaction: ButtonInteraction) {
@@ -557,16 +543,9 @@ async function handleLeaderboardRefresh(interaction: ButtonInteraction) {
 
 async function handlePortfolioToggle(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // portfolio_toggle_{targetUserId}_{mode}
-  const rest = interaction.customId.slice("portfolio_toggle_".length);
-  const lastUnderscore = rest.lastIndexOf("_");
-  if (lastUnderscore < 0) return;
-  const targetUserId = rest.slice(0, lastUnderscore);
-  const modeStr = rest.slice(lastUnderscore + 1);
-  const mode: "active" | "settled" =
-    modeStr === "settled" ? "settled" : "active";
-  if (!targetUserId) return;
-  await renderPortfolio(interaction, targetUserId, mode, 0);
+  const decoded = portfolioToggle.decode(interaction.customId);
+  if (!decoded) return;
+  await renderPortfolio(interaction, decoded.targetUserId, decoded.mode, 0);
 }
 
 async function handleCloseBet(interaction: ButtonInteraction) {
@@ -626,43 +605,19 @@ export async function showCloseBetPreview(
 
     const currentPrice = await getMidpointPrice(tokenId);
     const entryPrice = parseFloat(bet.oddsAtBet);
-    const cashOutAmount = Math.floor(bet.amount * (currentPrice / entryPrice));
-    const profit = cashOutAmount - bet.amount;
-    const priceDelta = currentPrice - entryPrice;
-
     const timestamp = Date.now();
 
-    const eventSlug = bet.market.event?.slug ?? null;
-    const marketLine = eventSlug
-      ? `**Market:** [${bet.market.question}](https://polymarket.com/event/${eventSlug})`
-      : `**Market:** ${bet.market.question}`;
-
-    const embed = new EmbedBuilder()
-      .setTitle("Close bet early?")
-      .setColor(profit >= 0 ? 0x00cc66 : 0xff4444)
-      .setDescription(
-        [
-          marketLine,
-          `**Your bet:** ${bet.outcome.toUpperCase()} at ${(entryPrice * 100).toFixed(1)}%`,
-          `**Current price:** ${(currentPrice * 100).toFixed(1)}%`,
-          "\u2500".repeat(20),
-          `**Staked:** ${bet.amount.toLocaleString()} pts`,
-          `**Return:** ${cashOutAmount.toLocaleString()} pts (${profit >= 0 ? "+" : ""}${profit.toLocaleString()} profit)`,
-          `**Price \u0394:** ${priceDelta >= 0 ? "+" : ""}${(priceDelta * 100).toFixed(1)}%`,
-        ].join("\n"),
-      )
-      .setTimestamp();
-
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`confirm_close_${betId}_${timestamp}`)
-        .setLabel("Confirm Close")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId("cancel_close")
-        .setLabel("Cancel")
-        .setStyle(ButtonStyle.Secondary),
-    );
+    const embed = buildClosePreviewEmbed({
+      betId,
+      question: bet.market.question,
+      eventSlug: bet.market.event?.slug ?? null,
+      outcome: bet.outcome as "yes" | "no",
+      entryPrice,
+      currentPrice,
+      amount: bet.amount,
+      timestamp,
+    });
+    const row = buildClosePreviewComponents(betId, timestamp);
 
     await interaction.editReply({
       embeds: [embed],
@@ -679,13 +634,9 @@ export async function showCloseBetPreview(
 async function handleConfirmClose(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
 
-  // confirm_close_{betId}_{timestamp}
-  const parts = interaction.customId.split("_");
-  const betIdStr = parts[2];
-  const timestampStr = parts[3];
-  if (!betIdStr || !timestampStr) return;
-  const betId = parseInt(betIdStr, 10);
-  const previewTimestamp = parseInt(timestampStr, 10);
+  const decoded = confirmClose.decode(interaction.customId);
+  if (!decoded) return;
+  const { betId, timestamp: previewTimestamp } = decoded;
 
   const guildId = await requireGuildId(interaction);
   if (!guildId) return;
@@ -718,45 +669,20 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
 
       const currentPrice = await getMidpointPrice(tokenId);
       const entryPrice = parseFloat(bet.oddsAtBet);
-      const cashOutAmount = Math.floor(
-        bet.amount * (currentPrice / entryPrice),
-      );
-      const profit = cashOutAmount - bet.amount;
-      const priceDelta = currentPrice - entryPrice;
       const newTimestamp = Date.now();
 
-      const eventSlug = bet.market.event?.slug ?? null;
-      const marketLine = eventSlug
-        ? `**Market:** [${bet.market.question}](https://polymarket.com/event/${eventSlug})`
-        : `**Market:** ${bet.market.question}`;
-
-      const embed = new EmbedBuilder()
-        .setTitle("Price updated — confirm close?")
-        .setColor(profit >= 0 ? 0x00cc66 : 0xff4444)
-        .setDescription(
-          [
-            marketLine,
-            `**Your bet:** ${bet.outcome.toUpperCase()} at ${(entryPrice * 100).toFixed(1)}%`,
-            `**Current price:** ${(currentPrice * 100).toFixed(1)}%`,
-            "\u2500".repeat(20),
-            `**Staked:** ${bet.amount.toLocaleString()} pts`,
-            `**Return:** ${cashOutAmount.toLocaleString()} pts (${profit >= 0 ? "+" : ""}${profit.toLocaleString()} profit)`,
-            `**Price \u0394:** ${priceDelta >= 0 ? "+" : ""}${(priceDelta * 100).toFixed(1)}%`,
-          ].join("\n"),
-        )
-        .setFooter({ text: "Price was stale — refreshed" })
-        .setTimestamp();
-
-      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`confirm_close_${betId}_${newTimestamp}`)
-          .setLabel("Confirm Close")
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId("cancel_close")
-          .setLabel("Cancel")
-          .setStyle(ButtonStyle.Secondary),
-      );
+      const embed = buildClosePreviewEmbed({
+        betId,
+        question: bet.market.question,
+        eventSlug: bet.market.event?.slug ?? null,
+        outcome: bet.outcome as "yes" | "no",
+        entryPrice,
+        currentPrice,
+        amount: bet.amount,
+        stale: true,
+        timestamp: newTimestamp,
+      });
+      const row = buildClosePreviewComponents(betId, newTimestamp);
 
       await interaction.editReply({ embeds: [embed], components: [row] });
       return;
@@ -789,7 +715,7 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
 
   const embed = new EmbedBuilder()
     .setTitle("Bet Closed")
-    .setColor(result.profit >= 0 ? 0x00cc66 : 0xff4444)
+    .setColor(result.profit >= 0 ? COLORS.GREEN : COLORS.RED)
     .setAuthor({
       name: interaction.user.displayName,
       iconURL: interaction.user.displayAvatarURL(),
@@ -864,15 +790,16 @@ async function renderSearchState(
 
 async function handleToggleSearchResolved(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  const showResolved = interaction.customId.startsWith("show_search_resolved_");
-  const prefix = showResolved
-    ? "show_search_resolved_"
-    : "hide_search_resolved_";
-  const encoded = interaction.customId.slice(prefix.length);
-  const query = decodeURIComponent(encoded);
+  const decoded = searchResolvedToggle.decode(interaction.customId);
+  if (!decoded) return;
 
   try {
-    await renderSearchState(interaction, query, showResolved, 0);
+    await renderSearchState(
+      interaction,
+      decoded.query,
+      decoded.showResolved,
+      0,
+    );
   } catch (err) {
     logger.error("Toggle search resolved failed:", err);
     await interaction.followUp({
@@ -884,20 +811,16 @@ async function handleToggleSearchResolved(interaction: ButtonInteraction) {
 
 async function handleSearchPage(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // search_page_{page}_{resolvedFlag}_{encodedQuery}
-  const rest = interaction.customId.slice("search_page_".length);
-  const firstUnderscore = rest.indexOf("_");
-  const secondUnderscore = rest.indexOf("_", firstUnderscore + 1);
-  if (firstUnderscore < 0 || secondUnderscore < 0) return;
-
-  const page = parseInt(rest.slice(0, firstUnderscore), 10);
-  const resolvedFlag = rest.slice(firstUnderscore + 1, secondUnderscore);
-  const encoded = rest.slice(secondUnderscore + 1);
-  const query = decodeURIComponent(encoded);
-  const showResolved = resolvedFlag === "1";
+  const decoded = searchPage.decode(interaction.customId);
+  if (!decoded) return;
 
   try {
-    await renderSearchState(interaction, query, showResolved, page);
+    await renderSearchState(
+      interaction,
+      decoded.query,
+      decoded.showResolved,
+      decoded.page,
+    );
   } catch (err) {
     logger.error("Search page change failed:", err);
     await interaction.followUp({

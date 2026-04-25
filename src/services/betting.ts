@@ -37,32 +37,6 @@ export async function placeBet(
   if (market.status !== "active")
     return { success: false, error: "This market is no longer active." };
 
-  // Check active bet limits
-  const userActiveBets = await db.query.bets.findMany({
-    where: and(
-      eq(bets.userId, user.id),
-      eq(bets.guildId, guildId),
-      eq(bets.status, "pending"),
-    ),
-  });
-
-  if (userActiveBets.length >= config.MAX_ACTIVE_BETS_PER_USER) {
-    return {
-      success: false,
-      error: `You already have ${config.MAX_ACTIVE_BETS_PER_USER} active bets. Close some before placing new ones.`,
-    };
-  }
-
-  const userBetsOnMarket = userActiveBets.filter(
-    (b) => b.marketId === marketId,
-  );
-  if (userBetsOnMarket.length >= config.MAX_ACTIVE_BETS_PER_MARKET) {
-    return {
-      success: false,
-      error: `You already have ${config.MAX_ACTIVE_BETS_PER_MARKET} active bet(s) on this market.`,
-    };
-  }
-
   // Fetch fresh price
   const tokenId = outcome === "yes" ? market.yesTokenId : market.noTokenId;
   if (!tokenId) {
@@ -90,7 +64,9 @@ export async function placeBet(
   const cap = amount * config.MAX_PAYOUT_MULTIPLIER;
   const potentialPayout = Math.floor(Math.min(rawPayout, cap));
 
-  // Atomic transaction: lock guild_members row, check balance, deduct, insert bet
+  // Atomic transaction: lock guild_members row, check limits + balance, deduct,
+  // insert bet. The lock on guildMembers serializes concurrent bets from the
+  // same user+guild so the active-bet counts below are accurate under bursts.
   try {
     const result = await db.transaction(async (tx) => {
       // Lock guild member row
@@ -100,9 +76,35 @@ export async function placeBet(
         .where(eq(guildMembers.id, member.id))
         .for("update");
 
-      if (!lockedMember || lockedMember.pointsBalance < amount) {
+      if (!lockedMember) throw new Error("Member not found.");
+
+      // Under the lock, count active bets (safe from TOCTOU bursts)
+      const userActiveBets = await tx.query.bets.findMany({
+        where: and(
+          eq(bets.userId, user.id),
+          eq(bets.guildId, guildId),
+          eq(bets.status, "pending"),
+        ),
+      });
+
+      if (userActiveBets.length >= config.MAX_ACTIVE_BETS_PER_USER) {
         throw new Error(
-          `Insufficient balance. You have ${lockedMember?.pointsBalance ?? 0} points.`,
+          `You already have ${config.MAX_ACTIVE_BETS_PER_USER} active bets. Close some before placing new ones.`,
+        );
+      }
+
+      const betsOnMarket = userActiveBets.filter(
+        (b) => b.marketId === marketId,
+      ).length;
+      if (betsOnMarket >= config.MAX_ACTIVE_BETS_PER_MARKET) {
+        throw new Error(
+          `You already have ${config.MAX_ACTIVE_BETS_PER_MARKET} active bet(s) on this market.`,
+        );
+      }
+
+      if (lockedMember.pointsBalance < amount) {
+        throw new Error(
+          `Insufficient balance. You have ${lockedMember.pointsBalance} points.`,
         );
       }
 
@@ -137,17 +139,6 @@ export async function placeBet(
         newBalance: lockedMember.pointsBalance - amount,
       };
     });
-
-    // Update market prices in DB
-    const yesPrice = outcome === "yes" ? price : 1 - price;
-    await db
-      .update(markets)
-      .set({
-        currentYesPrice: String(yesPrice),
-        currentNoPrice: String(1 - yesPrice),
-        updatedAt: new Date(),
-      })
-      .where(eq(markets.id, marketId));
 
     logger.info(
       `bet placed: betId=${result.betId} user=${discordId} guild=${guildId} marketId=${marketId} outcome=${outcome} stake=${amount} entry=${price.toFixed(4)} payout=${potentialPayout} balance=${result.newBalance}`,
@@ -210,10 +201,26 @@ export async function getUserSettledBets(discordId: string, guildId?: string) {
   return settled;
 }
 
+export interface NewSettlement {
+  betId: number;
+  outcome: "yes" | "no";
+  status: string;
+  amount: number;
+  actualPayout: number;
+  oddsAtBet: string;
+  closePrice: string | null;
+  marketQuestion: string;
+  marketConditionId: string;
+  eventSlug: string | null;
+}
+
 /**
- * Fetch bets settled since the user's last-seen marker and advance the marker.
- * Returns counts + net pts change so callers can surface a passive "while you
- * were away" notice without sending any push notification.
+ * Fetch bets auto-settled since the user's last-seen marker and advance the
+ * marker. Returns the settled bets + net pts change so callers can surface a
+ * passive "while you were away" notice without sending any push notification.
+ *
+ * Excludes `closed_early` bets since those are user-initiated and the user
+ * already saw the close card.
  *
  * First-time callers (marker is null) get no results — we initialize the marker
  * to now so future settlements are reported from this point forward.
@@ -221,7 +228,7 @@ export async function getUserSettledBets(discordId: string, guildId?: string) {
 export async function consumeNewSettlements(
   discordId: string,
   guildId: string,
-): Promise<{ count: number; netPts: number }> {
+): Promise<{ count: number; netPts: number; settlements: NewSettlement[] }> {
   const { user, member } = await ensureUser(discordId, guildId);
   const now = new Date();
 
@@ -230,25 +237,26 @@ export async function consumeNewSettlements(
       .update(guildMembers)
       .set({ lastSettlementsSeenAt: now })
       .where(eq(guildMembers.id, member.id));
-    return { count: 0, netPts: 0 };
+    return { count: 0, netPts: 0, settlements: [] };
   }
 
   const since = member.lastSettlementsSeenAt;
 
-  const newlySettled = await db
-    .select({
-      amount: bets.amount,
-      actualPayout: bets.actualPayout,
-    })
-    .from(bets)
-    .where(
-      and(
-        eq(bets.userId, user.id),
-        eq(bets.guildId, guildId),
-        ne(bets.status, "pending"),
-        or(gt(bets.resolvedAt, since), gt(bets.closedAt, since)),
-      ),
-    );
+  const newlySettled = await db.query.bets.findMany({
+    where: and(
+      eq(bets.userId, user.id),
+      eq(bets.guildId, guildId),
+      ne(bets.status, "pending"),
+      ne(bets.status, "closed_early"),
+      or(gt(bets.resolvedAt, since), gt(bets.closedAt, since)),
+    ),
+    with: { market: { with: { event: true } } },
+    orderBy: (bets, { desc }) => [
+      desc(bets.resolvedAt),
+      desc(bets.closedAt),
+      desc(bets.placedAt),
+    ],
+  });
 
   if (newlySettled.length === 0) {
     // Bump the marker anyway so we don't repeat this query work next time.
@@ -256,7 +264,7 @@ export async function consumeNewSettlements(
       .update(guildMembers)
       .set({ lastSettlementsSeenAt: now })
       .where(eq(guildMembers.id, member.id));
-    return { count: 0, netPts: 0 };
+    return { count: 0, netPts: 0, settlements: [] };
   }
 
   const netPts = newlySettled.reduce(
@@ -264,12 +272,25 @@ export async function consumeNewSettlements(
     0,
   );
 
+  const settlements: NewSettlement[] = newlySettled.map((b) => ({
+    betId: b.id,
+    outcome: b.outcome as "yes" | "no",
+    status: b.status,
+    amount: b.amount,
+    actualPayout: b.actualPayout ?? 0,
+    oddsAtBet: b.oddsAtBet,
+    closePrice: b.closePrice,
+    marketQuestion: b.market?.question ?? "(unknown market)",
+    marketConditionId: b.market?.polymarketConditionId ?? "",
+    eventSlug: b.market?.event?.slug ?? null,
+  }));
+
   await db
     .update(guildMembers)
     .set({ lastSettlementsSeenAt: now })
     .where(eq(guildMembers.id, member.id));
 
-  return { count: newlySettled.length, netPts };
+  return { count: newlySettled.length, netPts, settlements };
 }
 
 export async function getBetById(betId: number) {
@@ -280,6 +301,29 @@ export async function getBetById(betId: number) {
 }
 
 // ─── Early Close ─────────────────────────────────────────────────────────────
+
+export interface CloseQuote {
+  cashOut: number;
+  profit: number;
+  priceDelta: number;
+}
+
+/** Pure cash-out math, capped by MAX_PAYOUT_MULTIPLIER. Used by the close
+ * preview UI and the actual closeBet execution so they can't drift apart. */
+export function computeCloseQuote(
+  amount: number,
+  entryPrice: number,
+  currentPrice: number,
+): CloseQuote {
+  const rawCashOut = amount * (currentPrice / entryPrice);
+  const cap = amount * config.MAX_PAYOUT_MULTIPLIER;
+  const cashOut = Math.floor(Math.min(rawCashOut, cap));
+  return {
+    cashOut,
+    profit: cashOut - amount,
+    priceDelta: currentPrice - entryPrice,
+  };
+}
 
 export interface CloseBetSuccess {
   success: true;
@@ -348,10 +392,11 @@ export async function closeBet(
 
       const currentPrice = await getMidpointPrice(tokenId);
       const entryPrice = parseFloat(lockedBet.oddsAtBet);
-      const rawCashOut = lockedBet.amount * (currentPrice / entryPrice);
-      const cashOutCap = lockedBet.amount * config.MAX_PAYOUT_MULTIPLIER;
-      const cashOutAmount = Math.floor(Math.min(rawCashOut, cashOutCap));
-      const priceDelta = currentPrice - entryPrice;
+      const { cashOut: cashOutAmount, priceDelta } = computeCloseQuote(
+        lockedBet.amount,
+        entryPrice,
+        currentPrice,
+      );
 
       const now = new Date();
 
@@ -483,11 +528,14 @@ export async function resolveMarketBets(
     settledCount++;
   }
 
-  // Mark market as resolved
+  // Mark market as resolved AFTER all bets settle. If we crash mid-loop the
+  // market keeps its prior status so the resolver re-picks it up next cycle.
   await db
     .update(markets)
     .set({
       status: "resolved",
+      currentYesPrice: winningOutcome === "yes" ? "1" : "0",
+      currentNoPrice: winningOutcome === "yes" ? "0" : "1",
       updatedAt: new Date(),
     })
     .where(eq(markets.id, marketId));

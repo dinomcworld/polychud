@@ -6,8 +6,12 @@ import {
   EmbedBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
+import { searchPage, searchResolvedToggle } from "../interactions/customIds.js";
+import type { GammaMarket } from "../services/polymarket.js";
+import { COLORS } from "./colors.js";
+import { truncate } from "./text.js";
 
-interface MarketCardData {
+export interface MarketCardData {
   conditionId: string;
   question: string;
   slug: string | null;
@@ -19,6 +23,27 @@ interface MarketCardData {
   imageUrl: string | null;
   status: string;
   outcomeLabel: string | null;
+}
+
+/** Project a Gamma API market into the shape buildMarketEmbed expects. */
+export function gammaMarketToCardData(
+  gamma: GammaMarket,
+  eventSlug?: string | null,
+): MarketCardData {
+  const yesPrice = gamma.outcomePrices[0] ?? 0.5;
+  return {
+    conditionId: gamma.conditionId,
+    question: gamma.question,
+    slug: gamma.slug,
+    eventSlug: eventSlug ?? null,
+    yesPrice,
+    noPrice: gamma.outcomePrices[1] ?? 1 - yesPrice,
+    volume24h: gamma.volume24hr ? String(gamma.volume24hr) : null,
+    endDate: gamma.endDate ? new Date(gamma.endDate) : null,
+    imageUrl: gamma.image || gamma.icon || null,
+    status: gamma.closed ? "closed" : gamma.active ? "active" : "inactive",
+    outcomeLabel: gamma.groupItemTitle || null,
+  };
 }
 
 export function buildMarketEmbed(market: MarketCardData) {
@@ -36,9 +61,9 @@ export function buildMarketEmbed(market: MarketCardData) {
     : "https://polymarket.com";
 
   const embed = new EmbedBuilder()
-    .setTitle(title.length > 256 ? `${title.slice(0, 253)}...` : title)
+    .setTitle(truncate(title, 256))
     .setURL(marketUrl)
-    .setColor(market.status === "active" ? 0x00cc66 : 0x888888)
+    .setColor(market.status === "active" ? COLORS.GREEN : COLORS.GRAY)
     .setFooter({ text: "Virtual betting \u2022 Not real money" })
     .setTimestamp();
 
@@ -158,8 +183,7 @@ export function buildSearchResultsEmbed(
 
   const lines = pageItems.map((r, i) => {
     const idx = start + i + 1;
-    const trimmed =
-      r.question.length > 80 ? `${r.question.slice(0, 77)}...` : r.question;
+    const trimmed = truncate(r.question, 80);
     const linkText = trimmed.replace(/\[/g, "(").replace(/\]/g, ")");
     const titleLine = r.eventSlug
       ? `**${idx}.** **[${linkText}](https://polymarket.com/event/${r.eventSlug})**`
@@ -198,7 +222,7 @@ export function buildSearchResultsEmbed(
   return new EmbedBuilder()
     .setTitle(`Search: "${query}"`)
     .setDescription(lines.join("\n\n"))
-    .setColor(0x5865f2)
+    .setColor(COLORS.BLUE)
     .setFooter({ text: parts.join(" \u2022 ") });
 }
 
@@ -246,19 +270,16 @@ export function buildSearchControlsRow(
   totalPages: number,
 ): ActionRowBuilder<ButtonBuilder> | null {
   const buttons: ButtonBuilder[] = [];
-  // Discord caps customId at 100 chars; encode query and clip.
-  const encoded = encodeURIComponent(query).slice(0, 60);
-  const resolvedFlag = showResolved ? "1" : "0";
 
   if (totalPages > 1) {
     buttons.push(
       new ButtonBuilder()
-        .setCustomId(`search_page_${page - 1}_${resolvedFlag}_${encoded}`)
+        .setCustomId(searchPage.encode(page - 1, showResolved, query))
         .setLabel("◀ Prev")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(page <= 0),
       new ButtonBuilder()
-        .setCustomId(`search_page_${page + 1}_${resolvedFlag}_${encoded}`)
+        .setCustomId(searchPage.encode(page + 1, showResolved, query))
         .setLabel("Next ▶")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(page >= totalPages - 1),
@@ -266,12 +287,10 @@ export function buildSearchControlsRow(
   }
 
   if (hasResolved || showResolved) {
-    const prefix = showResolved
-      ? "hide_search_resolved_"
-      : "show_search_resolved_";
     buttons.push(
       new ButtonBuilder()
-        .setCustomId(`${prefix}${encoded}`)
+        // Toggle to the OPPOSITE state on click.
+        .setCustomId(searchResolvedToggle.encode(!showResolved, query))
         .setLabel(showResolved ? "Hide Resolved" : "Show Resolved")
         .setStyle(ButtonStyle.Secondary),
     );
