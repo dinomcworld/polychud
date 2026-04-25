@@ -71,6 +71,51 @@ import {
   searchResolvedToggle,
 } from "./customIds.js";
 
+type ButtonHandler = (interaction: ButtonInteraction) => Promise<void>;
+
+async function handleCancel(interaction: ButtonInteraction) {
+  await interaction.update({
+    content: "Cancelled.",
+    embeds: [],
+    components: [],
+  });
+}
+
+const EXACT_ROUTES: Record<string, ButtonHandler> = {
+  cancel_bet: handleCancel,
+  cancel_close: handleCancel,
+};
+
+/** Prefix → handler. Sorted at module load by descending prefix length so
+ * `confirm_close_` wins over `confirm_` and `refresh_event_` wins over
+ * `refresh_`, regardless of declaration order here. */
+const PREFIX_ROUTES: Array<[string, ButtonHandler]> = [
+  ["bet_yes_", handleBetButton],
+  ["bet_no_", handleBetButton],
+  ["refresh_event_", handleRefreshEvent],
+  ["refresh_", handleRefresh],
+  [confirmClose.prefix, handleConfirmClose],
+  [confirmBet.prefix, handleConfirm],
+  ["close_bet_", handleCloseBet],
+  [betsPage.prefix, handleBetsPage],
+  [betsToggle.prefix, handleBetsToggle],
+  [portfolioPage.prefix, handlePortfolioPage],
+  [portfolioRefresh.prefix, handlePortfolioRefresh],
+  [portfolioToggle.prefix, handlePortfolioToggle],
+  ["leaderboard_refresh_", handleLeaderboardRefresh],
+  [searchResolvedToggle.showPrefix, handleToggleSearchResolved],
+  [searchResolvedToggle.hidePrefix, handleToggleSearchResolved],
+  [searchPage.prefix, handleSearchPage],
+  ["trending_page_", handleTrendingPage],
+  ["show_resolved_", handleToggleResolved],
+  ["hide_resolved_", handleToggleResolved],
+  ["back_event_", handleBackToEvent],
+];
+
+const SORTED_ROUTES: ReadonlyArray<[string, ButtonHandler]> = [
+  ...PREFIX_ROUTES,
+].sort(([a], [b]) => b.length - a.length);
+
 export async function handleButton(interaction: ButtonInteraction) {
   const id = interaction.customId;
 
@@ -78,60 +123,23 @@ export async function handleButton(interaction: ButtonInteraction) {
     `button: user=${interaction.user.id} guild=${interaction.guildId ?? "dm"} customId=${id}`,
   );
 
-  // Order matters: longer prefixes (e.g. confirm_close_) must come before
-  // their shorter shadows (confirm_) since startsWith is order-dependent.
-  if (id.startsWith("bet_yes_") || id.startsWith("bet_no_")) {
-    await handleBetButton(interaction);
-  } else if (id.startsWith("refresh_event_")) {
-    await handleRefreshEvent(interaction);
-  } else if (id.startsWith("refresh_")) {
-    await handleRefresh(interaction);
-  } else if (id.startsWith(confirmClose.prefix)) {
-    await handleConfirmClose(interaction);
-  } else if (id.startsWith(confirmBet.prefix)) {
-    await handleConfirm(interaction);
-  } else if (id.startsWith("close_bet_")) {
-    await handleCloseBet(interaction);
-  } else if (id.startsWith(betsPage.prefix)) {
-    await handleBetsPage(interaction);
-  } else if (id.startsWith(betsToggle.prefix)) {
-    await handleBetsToggle(interaction);
-  } else if (id.startsWith(portfolioPage.prefix)) {
-    await handlePortfolioPage(interaction);
-  } else if (id.startsWith(portfolioRefresh.prefix)) {
-    await handlePortfolioRefresh(interaction);
-  } else if (id.startsWith(portfolioToggle.prefix)) {
-    await handlePortfolioToggle(interaction);
-  } else if (id.startsWith("leaderboard_refresh_")) {
-    await handleLeaderboardRefresh(interaction);
-  } else if (
-    id.startsWith(searchResolvedToggle.showPrefix) ||
-    id.startsWith(searchResolvedToggle.hidePrefix)
-  ) {
-    await handleToggleSearchResolved(interaction);
-  } else if (id.startsWith(searchPage.prefix)) {
-    await handleSearchPage(interaction);
-  } else if (id.startsWith("trending_page_")) {
-    await handleTrendingPage(interaction);
-  } else if (
-    id.startsWith("show_resolved_") ||
-    id.startsWith("hide_resolved_")
-  ) {
-    await handleToggleResolved(interaction);
-  } else if (id.startsWith("back_event_")) {
-    await handleBackToEvent(interaction);
-  } else if (id === "cancel_bet" || id === "cancel_close") {
-    await interaction.update({
-      content: "Cancelled.",
-      embeds: [],
-      components: [],
-    });
-  } else {
-    await interaction.reply({
-      content: "This button isn't implemented yet.",
-      flags: MessageFlags.Ephemeral,
-    });
+  const exact = EXACT_ROUTES[id];
+  if (exact) {
+    await exact(interaction);
+    return;
   }
+
+  for (const [prefix, handler] of SORTED_ROUTES) {
+    if (id.startsWith(prefix)) {
+      await handler(interaction);
+      return;
+    }
+  }
+
+  await interaction.reply({
+    content: "This button isn't implemented yet.",
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 async function handleBetButton(interaction: ButtonInteraction) {
