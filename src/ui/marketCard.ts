@@ -6,8 +6,9 @@ import {
   EmbedBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
+import type { GammaMarket } from "../services/polymarket.js";
 
-interface MarketCardData {
+export interface MarketCardData {
   conditionId: string;
   question: string;
   slug: string | null;
@@ -19,6 +20,27 @@ interface MarketCardData {
   imageUrl: string | null;
   status: string;
   outcomeLabel: string | null;
+}
+
+/** Project a Gamma API market into the shape buildMarketEmbed expects. */
+export function gammaMarketToCardData(
+  gamma: GammaMarket,
+  eventSlug?: string | null,
+): MarketCardData {
+  const yesPrice = gamma.outcomePrices[0] ?? 0.5;
+  return {
+    conditionId: gamma.conditionId,
+    question: gamma.question,
+    slug: gamma.slug,
+    eventSlug: eventSlug ?? null,
+    yesPrice,
+    noPrice: gamma.outcomePrices[1] ?? 1 - yesPrice,
+    volume24h: gamma.volume24hr ? String(gamma.volume24hr) : null,
+    endDate: gamma.endDate ? new Date(gamma.endDate) : null,
+    imageUrl: gamma.image || gamma.icon || null,
+    status: gamma.closed ? "closed" : gamma.active ? "active" : "inactive",
+    outcomeLabel: gamma.groupItemTitle || null,
+  };
 }
 
 export function buildMarketEmbed(market: MarketCardData) {

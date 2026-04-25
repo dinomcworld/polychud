@@ -1,19 +1,20 @@
 import { MessageFlags, type StringSelectMenuInteraction } from "discord.js";
 import {
-  buildEventCardFromGamma,
-  gammaMarketToCardData,
-} from "../commands/market.js";
-import {
   getCachedMarket,
   getMarketByConditionId,
 } from "../services/polymarket.js";
 import {
   buildBackToEventButton,
   buildEventButtons,
+  buildEventCardFromGamma,
   buildEventEmbed,
   buildEventSelectMenu,
 } from "../ui/eventCard.js";
-import { buildMarketButtons, buildMarketEmbed } from "../ui/marketCard.js";
+import {
+  buildMarketButtons,
+  buildMarketEmbed,
+  gammaMarketToCardData,
+} from "../ui/marketCard.js";
 import { logger } from "../utils/logger.js";
 import { showCloseBetPreview } from "./buttons.js";
 

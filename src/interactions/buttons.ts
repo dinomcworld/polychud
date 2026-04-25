@@ -7,15 +7,8 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
-import { buildBetListView } from "../commands/bet.js";
 import { buildLeaderboardView } from "../commands/leaderboard.js";
-import {
-  buildEventCardFromGamma,
-  eventsToSearchItems,
-  gammaMarketToCardData,
-  renderTrendingView,
-} from "../commands/market.js";
-import { buildPortfolioView } from "../commands/portfolio.js";
+import { renderTrendingView } from "../commands/market.js";
 import { config } from "../config.js";
 import {
   closeBet,
@@ -33,6 +26,7 @@ import {
   searchMarkets,
 } from "../services/polymarket.js";
 import { ensureUser, getUserStats } from "../services/users.js";
+import { buildBetListView } from "../ui/betList.js";
 import {
   buildClosePreviewComponents,
   buildClosePreviewEmbed,
@@ -40,8 +34,10 @@ import {
 import {
   buildBackToEventButton,
   buildEventButtons,
+  buildEventCardFromGamma,
   buildEventEmbed,
   buildEventSelectMenu,
+  eventsToSearchItems,
 } from "../ui/eventCard.js";
 import {
   buildMarketButtons,
@@ -51,7 +47,9 @@ import {
   buildSearchSelectMenu,
   computeSearchPages,
   escapeMarkdown,
+  gammaMarketToCardData,
 } from "../ui/marketCard.js";
+import { buildPortfolioView } from "../ui/portfolio.js";
 import {
   rememberMarketMessage,
   takeMarketMessage,

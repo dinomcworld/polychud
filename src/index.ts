@@ -2,7 +2,6 @@ import {
   ActivityType,
   Client,
   Collection,
-  EmbedBuilder,
   Events,
   GatewayIntentBits,
   MessageFlags,
@@ -29,7 +28,7 @@ import {
   getCachedMarket,
   getMarketByConditionId,
 } from "./services/polymarket.js";
-import { escapeMarkdown } from "./ui/marketCard.js";
+import { buildSettlementsEmbed } from "./ui/settlementCard.js";
 import { logger } from "./utils/logger.js";
 
 // Build command collection
@@ -125,77 +124,26 @@ async function maybeNotifySettlements(
     );
     if (result.count === 0) return;
 
-    const sign = result.netPts >= 0 ? "+" : "";
-    const color = result.netPts >= 0 ? 0x00cc66 : 0xff4444;
-
-    const entries = result.settlements.map((s) => {
-      const statusLabel =
-        s.status === "won"
-          ? "WON"
-          : s.status === "lost"
-            ? "LOST"
-            : s.status === "cancelled"
-              ? "REFUNDED"
-              : s.status.toUpperCase();
-      const pnl = s.actualPayout - s.amount;
-      const pnlStr =
-        pnl >= 0 ? `+${pnl.toLocaleString()}` : pnl.toLocaleString();
-      const trimmed =
-        s.marketQuestion.length > 120
-          ? `${s.marketQuestion.slice(0, 117)}...`
-          : s.marketQuestion;
-      const marketTitle = escapeMarkdown(trimmed);
-      const marketLine = s.eventSlug
-        ? `[${marketTitle}](https://polymarket.com/event/${s.eventSlug})`
-        : marketTitle;
-      return [
-        `**${marketLine}**`,
-        `#${s.betId} — ${s.outcome.toUpperCase()} · ${statusLabel} · Stake **${s.amount.toLocaleString()}** → **${s.actualPayout.toLocaleString()}** pts (**${pnlStr}**)`,
-      ].join("\n");
-    });
-
-    const MAX_DESC = 3800;
-    const descLines: string[] = [];
-    let used = 0;
-    let shown = 0;
-    for (const e of entries) {
-      const addLen = e.length + (descLines.length > 0 ? 2 : 0);
-      if (used + addLen > MAX_DESC) break;
-      descLines.push(e);
-      used += addLen;
-      shown++;
-    }
-    const remaining = entries.length - shown;
-    if (remaining > 0) {
-      descLines.push(`_…and ${remaining} more_`);
-    }
-
-    const title =
-      result.count === 1 ? "Bet Settled" : `${result.count} Bets Settled`;
-
-    const embed = new EmbedBuilder()
-      .setTitle(title)
-      .setColor(color)
-      .setAuthor({
-        name: interaction.user.displayName,
-        iconURL: interaction.user.displayAvatarURL(),
-      })
-      .setDescription(descLines.join("\n\n"))
-      .setFooter({ text: `Net ${sign}${result.netPts.toLocaleString()} pts` })
-      .setTimestamp();
-
+    let thumbnailUrl: string | null = null;
     const first = result.settlements[0];
     if (first?.marketConditionId) {
       try {
         const gamma =
           getCachedMarket(first.marketConditionId) ||
           (await getMarketByConditionId(first.marketConditionId));
-        const image = gamma?.image || gamma?.icon;
-        if (image) embed.setThumbnail(image);
+        thumbnailUrl = gamma?.image || gamma?.icon || null;
       } catch (err) {
-        logger.warn("Failed to attach thumbnail to settlement card", { err });
+        logger.warn("Failed to fetch thumbnail for settlement card", { err });
       }
     }
+
+    const embed = buildSettlementsEmbed({
+      user: interaction.user,
+      settlements: result.settlements,
+      netPts: result.netPts,
+      count: result.count,
+      thumbnailUrl,
+    });
 
     await interaction.followUp({ embeds: [embed] });
   } catch (err) {
