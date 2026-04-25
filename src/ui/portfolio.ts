@@ -16,6 +16,7 @@ import type {
   getUserSettledBets,
 } from "../services/betting.js";
 import type { getUserStats } from "../services/users.js";
+import { buildPrevNext, paginate } from "./paginate.js";
 
 type ActiveBet = Awaited<ReturnType<typeof getUserActiveBets>>[number];
 type SettledBet = Awaited<ReturnType<typeof getUserSettledBets>>[number];
@@ -110,13 +111,11 @@ export function buildPortfolioView(
 
   betsWithPnL.sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl));
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(betsWithPnL.length / PORTFOLIO_BETS_PAGE_SIZE),
-  );
-  const safePage = Math.min(Math.max(page, 0), totalPages - 1);
-  const start = safePage * PORTFOLIO_BETS_PAGE_SIZE;
-  const pageBets = betsWithPnL.slice(start, start + PORTFOLIO_BETS_PAGE_SIZE);
+  const {
+    slice: pageBets,
+    page: safePage,
+    totalPages,
+  } = paginate(betsWithPnL, PORTFOLIO_BETS_PAGE_SIZE, page);
 
   if (pageBets.length > 0) {
     const betLines = pageBets.map(({ bet, pnl }) => {
@@ -176,16 +175,9 @@ export function buildPortfolioView(
   const nav = new ActionRowBuilder<ButtonBuilder>();
   if (totalPages > 1) {
     nav.addComponents(
-      new ButtonBuilder()
-        .setCustomId(portfolioPage.encode(target.id, mode, safePage - 1))
-        .setLabel("◀ Prev")
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(safePage <= 0),
-      new ButtonBuilder()
-        .setCustomId(portfolioPage.encode(target.id, mode, safePage + 1))
-        .setLabel("Next ▶")
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(safePage >= totalPages - 1),
+      ...buildPrevNext(safePage, totalPages, (p) =>
+        portfolioPage.encode(target.id, mode, p),
+      ),
     );
   }
   nav.addComponents(

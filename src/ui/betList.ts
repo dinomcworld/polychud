@@ -11,6 +11,7 @@ import type {
   getUserActiveBets,
   getUserSettledBets,
 } from "../services/betting.js";
+import { buildPrevNext, paginate } from "./paginate.js";
 
 type ActiveBet = Awaited<ReturnType<typeof getUserActiveBets>>[number];
 type SettledBet = Awaited<ReturnType<typeof getUserSettledBets>>[number];
@@ -24,10 +25,11 @@ export function buildBetListView(
   page: number,
   mode: BetListMode = "active",
 ): BaseMessageOptions {
-  const totalPages = Math.max(1, Math.ceil(bets.length / BETS_PAGE_SIZE));
-  const safePage = Math.min(Math.max(page, 0), totalPages - 1);
-  const start = safePage * BETS_PAGE_SIZE;
-  const pageBets = bets.slice(start, start + BETS_PAGE_SIZE);
+  const {
+    slice: pageBets,
+    page: safePage,
+    totalPages,
+  } = paginate(bets, BETS_PAGE_SIZE, page);
 
   const embed = new EmbedBuilder()
     .setTitle(mode === "active" ? "Your Active Bets" : "Your Settled Bets")
@@ -88,16 +90,7 @@ export function buildBetListView(
   const nav = new ActionRowBuilder<ButtonBuilder>();
   if (totalPages > 1) {
     nav.addComponents(
-      new ButtonBuilder()
-        .setCustomId(betsPage.encode(mode, safePage - 1))
-        .setLabel("◀ Prev")
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(safePage <= 0),
-      new ButtonBuilder()
-        .setCustomId(betsPage.encode(mode, safePage + 1))
-        .setLabel("Next ▶")
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(safePage >= totalPages - 1),
+      ...buildPrevNext(safePage, totalPages, (p) => betsPage.encode(mode, p)),
     );
   }
   nav.addComponents(
