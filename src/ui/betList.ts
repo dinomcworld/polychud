@@ -6,6 +6,7 @@ import {
   EmbedBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
+import { betsPage, betsToggle } from "../interactions/customIds.js";
 import type {
   getUserActiveBets,
   getUserSettledBets,
@@ -88,12 +89,12 @@ export function buildBetListView(
   if (totalPages > 1) {
     nav.addComponents(
       new ButtonBuilder()
-        .setCustomId(`bets_page_${mode}_${safePage - 1}`)
+        .setCustomId(betsPage.encode(mode, safePage - 1))
         .setLabel("◀ Prev")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(safePage <= 0),
       new ButtonBuilder()
-        .setCustomId(`bets_page_${mode}_${safePage + 1}`)
+        .setCustomId(betsPage.encode(mode, safePage + 1))
         .setLabel("Next ▶")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(safePage >= totalPages - 1),
@@ -101,7 +102,7 @@ export function buildBetListView(
   }
   nav.addComponents(
     new ButtonBuilder()
-      .setCustomId(`bets_toggle_${mode === "active" ? "settled" : "active"}`)
+      .setCustomId(betsToggle.encode(mode === "active" ? "settled" : "active"))
       .setLabel(mode === "active" ? "Show Settled" : "Show Active")
       .setStyle(ButtonStyle.Secondary),
   );

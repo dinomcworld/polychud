@@ -6,6 +6,7 @@ import {
   EmbedBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
+import { searchPage, searchResolvedToggle } from "../interactions/customIds.js";
 import type { GammaMarket } from "../services/polymarket.js";
 
 export interface MarketCardData {
@@ -268,19 +269,16 @@ export function buildSearchControlsRow(
   totalPages: number,
 ): ActionRowBuilder<ButtonBuilder> | null {
   const buttons: ButtonBuilder[] = [];
-  // Discord caps customId at 100 chars; encode query and clip.
-  const encoded = encodeURIComponent(query).slice(0, 60);
-  const resolvedFlag = showResolved ? "1" : "0";
 
   if (totalPages > 1) {
     buttons.push(
       new ButtonBuilder()
-        .setCustomId(`search_page_${page - 1}_${resolvedFlag}_${encoded}`)
+        .setCustomId(searchPage.encode(page - 1, showResolved, query))
         .setLabel("◀ Prev")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(page <= 0),
       new ButtonBuilder()
-        .setCustomId(`search_page_${page + 1}_${resolvedFlag}_${encoded}`)
+        .setCustomId(searchPage.encode(page + 1, showResolved, query))
         .setLabel("Next ▶")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(page >= totalPages - 1),
@@ -288,12 +286,10 @@ export function buildSearchControlsRow(
   }
 
   if (hasResolved || showResolved) {
-    const prefix = showResolved
-      ? "hide_search_resolved_"
-      : "show_search_resolved_";
     buttons.push(
       new ButtonBuilder()
-        .setCustomId(`${prefix}${encoded}`)
+        // Toggle to the OPPOSITE state on click.
+        .setCustomId(searchResolvedToggle.encode(!showResolved, query))
         .setLabel(showResolved ? "Hide Resolved" : "Show Resolved")
         .setStyle(ButtonStyle.Secondary),
     );

@@ -56,6 +56,18 @@ import {
 } from "../utils/betContext.js";
 import { requireGuildId } from "../utils/guards.js";
 import { logger } from "../utils/logger.js";
+import {
+  betModal,
+  betsPage,
+  betsToggle,
+  confirmBet,
+  confirmClose,
+  portfolioPage,
+  portfolioRefresh,
+  portfolioToggle,
+  searchPage,
+  searchResolvedToggle,
+} from "./customIds.js";
 
 export async function handleButton(interaction: ButtonInteraction) {
   const id = interaction.customId;
@@ -64,36 +76,38 @@ export async function handleButton(interaction: ButtonInteraction) {
     `button: user=${interaction.user.id} guild=${interaction.guildId ?? "dm"} customId=${id}`,
   );
 
+  // Order matters: longer prefixes (e.g. confirm_close_) must come before
+  // their shorter shadows (confirm_) since startsWith is order-dependent.
   if (id.startsWith("bet_yes_") || id.startsWith("bet_no_")) {
     await handleBetButton(interaction);
   } else if (id.startsWith("refresh_event_")) {
     await handleRefreshEvent(interaction);
   } else if (id.startsWith("refresh_")) {
     await handleRefresh(interaction);
-  } else if (id.startsWith("confirm_close_")) {
+  } else if (id.startsWith(confirmClose.prefix)) {
     await handleConfirmClose(interaction);
-  } else if (id.startsWith("confirm_")) {
+  } else if (id.startsWith(confirmBet.prefix)) {
     await handleConfirm(interaction);
   } else if (id.startsWith("close_bet_")) {
     await handleCloseBet(interaction);
-  } else if (id.startsWith("bets_page_")) {
+  } else if (id.startsWith(betsPage.prefix)) {
     await handleBetsPage(interaction);
-  } else if (id.startsWith("bets_toggle_")) {
+  } else if (id.startsWith(betsToggle.prefix)) {
     await handleBetsToggle(interaction);
-  } else if (id.startsWith("portfolio_page_")) {
+  } else if (id.startsWith(portfolioPage.prefix)) {
     await handlePortfolioPage(interaction);
-  } else if (id.startsWith("portfolio_refresh_")) {
+  } else if (id.startsWith(portfolioRefresh.prefix)) {
     await handlePortfolioRefresh(interaction);
-  } else if (id.startsWith("portfolio_toggle_")) {
+  } else if (id.startsWith(portfolioToggle.prefix)) {
     await handlePortfolioToggle(interaction);
   } else if (id.startsWith("leaderboard_refresh_")) {
     await handleLeaderboardRefresh(interaction);
   } else if (
-    id.startsWith("show_search_resolved_") ||
-    id.startsWith("hide_search_resolved_")
+    id.startsWith(searchResolvedToggle.showPrefix) ||
+    id.startsWith(searchResolvedToggle.hidePrefix)
   ) {
     await handleToggleSearchResolved(interaction);
-  } else if (id.startsWith("search_page_")) {
+  } else if (id.startsWith(searchPage.prefix)) {
     await handleSearchPage(interaction);
   } else if (id.startsWith("trending_page_")) {
     await handleTrendingPage(interaction);
@@ -135,7 +149,7 @@ async function handleBetButton(interaction: ButtonInteraction) {
   );
 
   const modal = new ModalBuilder()
-    .setCustomId(`betmodal_${conditionId}_${outcome}`)
+    .setCustomId(betModal.encode(conditionId, outcome))
     .setTitle(`Place a ${outcome.toUpperCase()} bet`);
 
   const amountInput = new TextInputBuilder()
@@ -307,11 +321,9 @@ async function handleBackToEvent(interaction: ButtonInteraction) {
 async function handleConfirm(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
 
-  // confirm_{conditionId}_{outcome}_{amount}
-  const [, conditionId, outcome, amountStr] = interaction.customId.split(
-    "_",
-  ) as [string, string, "yes" | "no", string];
-  const amount = parseInt(amountStr, 10);
+  const decoded = confirmBet.decode(interaction.customId);
+  if (!decoded) return;
+  const { conditionId, outcome, amount } = decoded;
 
   // Fetch market from Gamma to upsert
   let gamma = getCachedMarket(conditionId);
@@ -450,31 +462,16 @@ async function renderBetList(
 
 async function handleBetsPage(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-
-  // bets_page_{mode}_{page} (legacy: bets_page_{page})
-  const rest = interaction.customId.slice("bets_page_".length);
-  const firstUnderscore = rest.indexOf("_");
-  let mode: "active" | "settled" = "active";
-  let pageStr = rest;
-  if (firstUnderscore >= 0) {
-    const prefix = rest.slice(0, firstUnderscore);
-    if (prefix === "active" || prefix === "settled") {
-      mode = prefix;
-      pageStr = rest.slice(firstUnderscore + 1);
-    }
-  }
-  const page = parseInt(pageStr, 10);
-  if (Number.isNaN(page)) return;
-
-  await renderBetList(interaction, mode, page);
+  const decoded = betsPage.decode(interaction.customId);
+  if (!decoded) return;
+  await renderBetList(interaction, decoded.mode, decoded.page);
 }
 
 async function handleBetsToggle(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  const target = interaction.customId.slice("bets_toggle_".length);
-  const mode: "active" | "settled" =
-    target === "settled" ? "settled" : "active";
-  await renderBetList(interaction, mode, 0);
+  const decoded = betsToggle.decode(interaction.customId);
+  if (!decoded) return;
+  await renderBetList(interaction, decoded.mode, 0);
 }
 
 async function renderPortfolio(
@@ -499,47 +496,26 @@ async function renderPortfolio(
 
 async function handlePortfolioPage(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-
-  // portfolio_page_{targetUserId}_{mode}_{page}
-  //   or legacy portfolio_page_{targetUserId}_{page}
-  const rest = interaction.customId.slice("portfolio_page_".length);
-  const parts = rest.split("_");
-  const last = parts.pop();
-  if (!last) return;
-  const page = parseInt(last, 10);
-  if (Number.isNaN(page)) return;
-
-  let mode: "active" | "settled" = "active";
-  if (parts.length > 0) {
-    const maybeMode = parts[parts.length - 1];
-    if (maybeMode === "active" || maybeMode === "settled") {
-      mode = maybeMode;
-      parts.pop();
-    }
-  }
-  const targetUserId = parts.join("_");
-  if (!targetUserId) return;
-
-  await renderPortfolio(interaction, targetUserId, mode, page);
+  const decoded = portfolioPage.decode(interaction.customId);
+  if (!decoded) return;
+  await renderPortfolio(
+    interaction,
+    decoded.targetUserId,
+    decoded.mode,
+    decoded.page,
+  );
 }
 
 async function handlePortfolioRefresh(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // portfolio_refresh_{targetUserId}_{mode}_{page}
-  const rest = interaction.customId.slice("portfolio_refresh_".length);
-  const parts = rest.split("_");
-  const last = parts.pop();
-  if (!last) return;
-  const page = parseInt(last, 10);
-  if (Number.isNaN(page)) return;
-
-  const maybeMode = parts.pop();
-  const mode: "active" | "settled" =
-    maybeMode === "settled" ? "settled" : "active";
-  const targetUserId = parts.join("_");
-  if (!targetUserId) return;
-
-  await renderPortfolio(interaction, targetUserId, mode, page);
+  const decoded = portfolioRefresh.decode(interaction.customId);
+  if (!decoded) return;
+  await renderPortfolio(
+    interaction,
+    decoded.targetUserId,
+    decoded.mode,
+    decoded.page,
+  );
 }
 
 async function handleLeaderboardRefresh(interaction: ButtonInteraction) {
@@ -557,16 +533,9 @@ async function handleLeaderboardRefresh(interaction: ButtonInteraction) {
 
 async function handlePortfolioToggle(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // portfolio_toggle_{targetUserId}_{mode}
-  const rest = interaction.customId.slice("portfolio_toggle_".length);
-  const lastUnderscore = rest.lastIndexOf("_");
-  if (lastUnderscore < 0) return;
-  const targetUserId = rest.slice(0, lastUnderscore);
-  const modeStr = rest.slice(lastUnderscore + 1);
-  const mode: "active" | "settled" =
-    modeStr === "settled" ? "settled" : "active";
-  if (!targetUserId) return;
-  await renderPortfolio(interaction, targetUserId, mode, 0);
+  const decoded = portfolioToggle.decode(interaction.customId);
+  if (!decoded) return;
+  await renderPortfolio(interaction, decoded.targetUserId, decoded.mode, 0);
 }
 
 async function handleCloseBet(interaction: ButtonInteraction) {
@@ -655,13 +624,9 @@ export async function showCloseBetPreview(
 async function handleConfirmClose(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
 
-  // confirm_close_{betId}_{timestamp}
-  const parts = interaction.customId.split("_");
-  const betIdStr = parts[2];
-  const timestampStr = parts[3];
-  if (!betIdStr || !timestampStr) return;
-  const betId = parseInt(betIdStr, 10);
-  const previewTimestamp = parseInt(timestampStr, 10);
+  const decoded = confirmClose.decode(interaction.customId);
+  if (!decoded) return;
+  const { betId, timestamp: previewTimestamp } = decoded;
 
   const guildId = await requireGuildId(interaction);
   if (!guildId) return;
@@ -815,15 +780,16 @@ async function renderSearchState(
 
 async function handleToggleSearchResolved(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  const showResolved = interaction.customId.startsWith("show_search_resolved_");
-  const prefix = showResolved
-    ? "show_search_resolved_"
-    : "hide_search_resolved_";
-  const encoded = interaction.customId.slice(prefix.length);
-  const query = decodeURIComponent(encoded);
+  const decoded = searchResolvedToggle.decode(interaction.customId);
+  if (!decoded) return;
 
   try {
-    await renderSearchState(interaction, query, showResolved, 0);
+    await renderSearchState(
+      interaction,
+      decoded.query,
+      decoded.showResolved,
+      0,
+    );
   } catch (err) {
     logger.error("Toggle search resolved failed:", err);
     await interaction.followUp({
@@ -835,20 +801,16 @@ async function handleToggleSearchResolved(interaction: ButtonInteraction) {
 
 async function handleSearchPage(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // search_page_{page}_{resolvedFlag}_{encodedQuery}
-  const rest = interaction.customId.slice("search_page_".length);
-  const firstUnderscore = rest.indexOf("_");
-  const secondUnderscore = rest.indexOf("_", firstUnderscore + 1);
-  if (firstUnderscore < 0 || secondUnderscore < 0) return;
-
-  const page = parseInt(rest.slice(0, firstUnderscore), 10);
-  const resolvedFlag = rest.slice(firstUnderscore + 1, secondUnderscore);
-  const encoded = rest.slice(secondUnderscore + 1);
-  const query = decodeURIComponent(encoded);
-  const showResolved = resolvedFlag === "1";
+  const decoded = searchPage.decode(interaction.customId);
+  if (!decoded) return;
 
   try {
-    await renderSearchState(interaction, query, showResolved, page);
+    await renderSearchState(
+      interaction,
+      decoded.query,
+      decoded.showResolved,
+      decoded.page,
+    );
   } catch (err) {
     logger.error("Search page change failed:", err);
     await interaction.followUp({

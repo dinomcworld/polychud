@@ -4,6 +4,7 @@ import {
   ButtonStyle,
   EmbedBuilder,
 } from "discord.js";
+import { confirmClose } from "../interactions/customIds.js";
 import { computeCloseQuote } from "../services/betting.js";
 
 export interface ClosePreviewInput {
@@ -64,7 +65,7 @@ export function buildClosePreviewComponents(
 ): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`confirm_close_${betId}_${timestamp}`)
+      .setCustomId(confirmClose.encode(betId, timestamp))
       .setLabel("Confirm Close")
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()

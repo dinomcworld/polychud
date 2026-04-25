@@ -6,6 +6,11 @@ import {
   EmbedBuilder,
   type User,
 } from "discord.js";
+import {
+  portfolioPage,
+  portfolioRefresh,
+  portfolioToggle,
+} from "../interactions/customIds.js";
 import type {
   getUserActiveBets,
   getUserSettledBets,
@@ -172,12 +177,12 @@ export function buildPortfolioView(
   if (totalPages > 1) {
     nav.addComponents(
       new ButtonBuilder()
-        .setCustomId(`portfolio_page_${target.id}_${mode}_${safePage - 1}`)
+        .setCustomId(portfolioPage.encode(target.id, mode, safePage - 1))
         .setLabel("◀ Prev")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(safePage <= 0),
       new ButtonBuilder()
-        .setCustomId(`portfolio_page_${target.id}_${mode}_${safePage + 1}`)
+        .setCustomId(portfolioPage.encode(target.id, mode, safePage + 1))
         .setLabel("Next ▶")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(safePage >= totalPages - 1),
@@ -186,12 +191,15 @@ export function buildPortfolioView(
   nav.addComponents(
     new ButtonBuilder()
       .setCustomId(
-        `portfolio_toggle_${target.id}_${mode === "active" ? "settled" : "active"}`,
+        portfolioToggle.encode(
+          target.id,
+          mode === "active" ? "settled" : "active",
+        ),
       )
       .setLabel(mode === "active" ? "Show Settled" : "Show Active")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId(`portfolio_refresh_${target.id}_${mode}_${safePage}`)
+      .setCustomId(portfolioRefresh.encode(target.id, mode, safePage))
       .setLabel("Refresh")
       .setStyle(ButtonStyle.Secondary),
   );
