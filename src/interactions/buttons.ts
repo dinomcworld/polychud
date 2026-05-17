@@ -429,10 +429,11 @@ async function handleChart(interaction: ButtonInteraction) {
     const rawTitle = gamma.groupItemTitle
       ? `${gamma.groupItemTitle} — ${gamma.question}`
       : gamma.question;
-    const png = renderPriceChart(points, {
+    const png = await renderPriceChart(points, {
       title: rawTitle,
       direction,
       timeframe: tf.pillLabel,
+      iconUrl: gamma.image || gamma.icon || null,
     });
     if (!png) {
       await ephemeralError("Couldn't render chart.");
