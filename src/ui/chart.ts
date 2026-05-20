@@ -51,6 +51,8 @@ export interface ChartOptions {
   direction?: ChartDirection;
   /** Short label for the timeframe shown in the header pill, e.g. "1W". */
   timeframe?: string;
+  /** Optional market icon URL; embedded inline if it fetches successfully. */
+  iconUrl?: string | null;
 }
 
 const LINE_COLORS: Record<ChartDirection, string> = {
@@ -67,12 +69,15 @@ const TEXT_TITLE = "#ffffff";
 const TEXT_SUB = "#b5bac1";
 const PILL_BG = "#2b2d31";
 
-export function renderPriceChart(
+export async function renderPriceChart(
   points: PricePoint[],
   opts: ChartOptions = {},
-): Buffer | null {
+): Promise<Buffer | null> {
   if (points.length < 2) return null;
-  const svg = buildChartSvg(points, opts);
+  const iconDataUri = opts.iconUrl
+    ? await fetchIconDataUri(opts.iconUrl)
+    : null;
+  const svg = buildChartSvg(points, opts, iconDataUri);
   // Resvg ships without fonts by default — text silently disappears unless
   // we explicitly load system fonts and pick a family the box has.
   const resvg = new Resvg(svg, {
@@ -87,7 +92,11 @@ export function renderPriceChart(
   return Buffer.from(resvg.render().asPng());
 }
 
-function buildChartSvg(points: PricePoint[], opts: ChartOptions): string {
+function buildChartSvg(
+  points: PricePoint[],
+  opts: ChartOptions,
+  iconDataUri: string | null,
+): string {
   const first = points[0];
   const last = points[points.length - 1];
   // Caller (renderPriceChart) guarantees points.length >= 2; this guard is for
@@ -101,13 +110,20 @@ function buildChartSvg(points: PricePoint[], opts: ChartOptions): string {
   const timeframe = opts.timeframe ?? "1W";
 
   // Layout
-  const header = 76;
-  const top = header + 8;
-  const right = 52;
-  const bottom = 36;
-  const left = 16;
+  const header = 92;
+  const top = header + 10;
+  const right = 56;
+  const bottom = 38;
+  const left = 24;
   const chartW = width - left - right;
   const chartH = height - top - bottom;
+
+  // Header geometry — icon (if present) anchors the left of the header block;
+  // title/subtitle/price stack to its right.
+  const iconSize = 44;
+  const iconX = left;
+  const iconY = 20;
+  const textLeft = iconDataUri ? iconX + iconSize + 12 : left;
 
   const tMin = first.t;
   const tMax = last.t;
@@ -189,32 +205,44 @@ function buildChartSvg(points: PricePoint[], opts: ChartOptions): string {
   const deltaSign = deltaPct > 0 ? "+" : "";
   const deltaStr = `${arrow} ${deltaSign}${deltaPct.toFixed(2)} pts`;
 
-  const titleText = opts.title ? truncate(opts.title, 64) : "";
-  const titleSvg = titleText
-    ? `<text x="${left}" y="28" fill="${TEXT_TITLE}" font-size="14" font-weight="600" font-family="DejaVu Sans">${escapeSvg(titleText)}</text>`
-    : "";
-
-  // "YES probability" subtitle (left, below title)
-  const subtitleSvg = `<text x="${left}" y="50" fill="${TEXT_SUB}" font-size="11" font-family="DejaVu Sans">YES probability</text>`;
-
-  // Big current price (left, below subtitle)
-  const bigPriceSvg = `<text x="${left}" y="72" fill="${lineColor}" font-size="22" font-weight="700" font-family="DejaVu Sans">${currentPct.toFixed(1)}%</text>`;
-
-  // Delta (right of big price)
-  const deltaSvg = `<text x="${left + 90}" y="72" fill="${lineColor}" font-size="12" font-weight="600" font-family="DejaVu Sans">${deltaStr}</text>`;
-
-  // Timeframe pill (top-right)
-  const pillW = 36;
+  // Timeframe pill (top-right) — reserve space so the title can wrap-truncate
+  // before colliding with it.
+  const pillW = 44;
   const pillH = 22;
+  const pillY = 22;
   const pillX = width - right - pillW + 16;
-  const pillY = 18;
   const pillSvg =
     `<rect x="${pillX}" y="${pillY}" width="${pillW}" height="${pillH}" rx="11" ry="11" fill="${PILL_BG}" stroke="${PANEL_BORDER}" stroke-width="1"/>` +
     `<text x="${pillX + pillW / 2}" y="${pillY + 15}" fill="${TEXT_SUB}" font-size="11" font-weight="600" font-family="DejaVu Sans" text-anchor="middle">${escapeSvg(timeframe)}</text>`;
 
-  // Header divider
+  // Crude character budget so titles don't run under the pill. ~6.5px/char at
+  // 14px DejaVu Sans is a decent approximation.
+  const titleBudgetPx = pillX - textLeft - 12;
+  const titleMaxChars = Math.max(16, Math.floor(titleBudgetPx / 6.5));
+  const titleText = opts.title ? truncate(opts.title, titleMaxChars) : "";
+  const titleSvg = titleText
+    ? `<text x="${textLeft}" y="34" fill="${TEXT_TITLE}" font-size="14" font-weight="600" font-family="DejaVu Sans">${escapeSvg(titleText)}</text>`
+    : "";
+
+  // "YES probability" subtitle (below title)
+  const subtitleSvg = `<text x="${textLeft}" y="54" fill="${TEXT_SUB}" font-size="11" font-family="DejaVu Sans">YES probability</text>`;
+
+  // Big current price (below subtitle)
+  const bigPriceSvg = `<text x="${textLeft}" y="80" fill="${lineColor}" font-size="22" font-weight="700" font-family="DejaVu Sans">${currentPct.toFixed(1)}%</text>`;
+
+  // Delta (right of big price)
+  const deltaSvg = `<text x="${textLeft + 92}" y="80" fill="${lineColor}" font-size="12" font-weight="600" font-family="DejaVu Sans">${deltaStr}</text>`;
+
+  // Icon — clipped to a rounded square. clipPath id is local to this SVG.
+  const iconSvg = iconDataUri
+    ? `<defs><clipPath id="iconClip"><rect x="${iconX}" y="${iconY}" width="${iconSize}" height="${iconSize}" rx="8" ry="8"/></clipPath></defs>` +
+      `<rect x="${iconX}" y="${iconY}" width="${iconSize}" height="${iconSize}" rx="8" ry="8" fill="${PILL_BG}" stroke="${PANEL_BORDER}" stroke-width="1"/>` +
+      `<image href="${iconDataUri}" x="${iconX}" y="${iconY}" width="${iconSize}" height="${iconSize}" preserveAspectRatio="xMidYMid slice" clip-path="url(#iconClip)"/>`
+    : "";
+
+  // Header divider — span the chart band cleanly.
   const dividerY = header;
-  const dividerSvg = `<line x1="${left}" y1="${dividerY}" x2="${width - right + 32}" y2="${dividerY}" stroke="${PANEL_BORDER}" stroke-width="1"/>`;
+  const dividerSvg = `<line x1="${left}" y1="${dividerY}" x2="${left + chartW}" y2="${dividerY}" stroke="${PANEL_BORDER}" stroke-width="1"/>`;
 
   // Gradient definitions
   const gradId = "areaGrad";
@@ -230,6 +258,7 @@ function buildChartSvg(points: PricePoint[], opts: ChartOptions): string {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
     defs,
     `<rect width="${width}" height="${height}" fill="${BG}"/>`,
+    iconSvg,
     titleSvg,
     subtitleSvg,
     bigPriceSvg,
@@ -320,6 +349,24 @@ function formatPctTick(ticks: number[]): (p: number) => string {
   if (stepPct < 0.1) decimals = 2;
   else if (stepPct < 1) decimals = 1;
   return (p: number) => `${(p * 100).toFixed(decimals)}%`;
+}
+
+async function fetchIconDataUri(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return null;
+    const ctype = res.headers.get("content-type") ?? "image/png";
+    // Resvg supports raster (png/jpeg) and svg inside <image href>. Skip
+    // anything exotic so we don't break the render.
+    if (!/^image\/(png|jpe?g|svg\+xml|webp|gif)/i.test(ctype)) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    return `data:${ctype};base64,${buf.toString("base64")}`;
+  } catch (err) {
+    logger.debug(`chart: icon fetch failed for ${url}: ${String(err)}`);
+    return null;
+  }
 }
 
 function escapeSvg(s: string): string {

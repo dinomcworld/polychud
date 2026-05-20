@@ -7,14 +7,20 @@ import {
   type ModalSubmitInteraction,
 } from "discord.js";
 import { config } from "../config.js";
+import {
+  getCachedMarketSummary,
+  getMarketSummary,
+} from "../services/aiSummary.js";
 import { getUserActiveBets } from "../services/betting.js";
 import {
+  type GammaMarket,
   getCachedMarket,
   getMarketByConditionId,
   getMidpointPrice,
 } from "../services/polymarket.js";
 import { ensureGuildSettings, ensureUser } from "../services/users.js";
 import { COLORS } from "../ui/colors.js";
+import { truncate } from "../ui/text.js";
 import { requireGuildId } from "../utils/guards.js";
 import { logger } from "../utils/logger.js";
 import { betModal, confirmBet } from "./customIds.js";
@@ -134,19 +140,15 @@ async function handleBetModal(interaction: ModalSubmitInteraction) {
   const pct = (price * 100).toFixed(1);
   const potentialPayout = Math.floor(amount / price);
 
-  // Show confirmation — pass conditionId in confirm button
-  const embed = new EmbedBuilder()
-    .setTitle("Confirm your bet")
-    .setColor(COLORS.ORANGE)
-    .setDescription(
-      [
-        `**Market:** ${gamma.question}`,
-        `**Outcome:** ${outcome.toUpperCase()} at ${pct}%`,
-        `**Stake:** ${amount.toLocaleString()} pts`,
-        `**Potential payout:** ${potentialPayout.toLocaleString()} pts (if you win)`,
-      ].join("\n"),
-    )
-    .setTimestamp();
+  const cachedSummary = getCachedMarketSummary(gamma.conditionId);
+  const embed = buildBetConfirmEmbed({
+    gamma,
+    outcome,
+    pct,
+    amount,
+    potentialPayout,
+    summary: cachedSummary,
+  });
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
@@ -163,4 +165,59 @@ async function handleBetModal(interaction: ModalSubmitInteraction) {
     embeds: [embed],
     components: [row],
   });
+
+  if (!cachedSummary) {
+    // Fire-and-forget summary fetch + second editReply. Failures are silent.
+    void (async () => {
+      const summary = await getMarketSummary(gamma);
+      if (!summary) return;
+      const updated = buildBetConfirmEmbed({
+        gamma,
+        outcome,
+        pct,
+        amount,
+        potentialPayout,
+        summary,
+      });
+      try {
+        await interaction.editReply({ embeds: [updated], components: [row] });
+      } catch (err) {
+        logger.warn(
+          `Bet confirm summary editReply failed for ${gamma.conditionId}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    })();
+  }
+}
+
+function buildBetConfirmEmbed(args: {
+  gamma: GammaMarket;
+  outcome: "yes" | "no";
+  pct: string;
+  amount: number;
+  potentialPayout: number;
+  summary: string | null;
+}): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setTitle("Confirm your bet")
+    .setColor(COLORS.ORANGE)
+    .setDescription(
+      [
+        `**Market:** ${args.gamma.question}`,
+        `**Outcome:** ${args.outcome.toUpperCase()} at ${args.pct}%`,
+        `**Stake:** ${args.amount.toLocaleString()} pts`,
+        `**Potential payout:** ${args.potentialPayout.toLocaleString()} pts (if you win)`,
+      ].join("\n"),
+    )
+    .setTimestamp();
+
+  if (args.summary) {
+    // Embed field value cap is 1024 chars.
+    embed.addFields({
+      name: "Resolution",
+      value: truncate(args.summary, 1000),
+    });
+  }
+
+  return embed;
 }

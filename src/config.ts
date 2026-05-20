@@ -36,6 +36,27 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+
+  // AI summary (OpenRouter). Feature is gated on BOTH key and model being set.
+  // OPENROUTER_MODEL accepts a comma-separated list; later entries are tried as
+  // fallbacks when an earlier one is rate-limited.
+  OPENROUTER_API_KEY: z.string().optional(),
+  OPENROUTER_MODEL: z
+    .string()
+    .optional()
+    .transform((v) =>
+      v
+        ? v
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [],
+    ),
+  AI_SUMMARY_CACHE_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(86_400_000), // 24h
 });
 
 const result = envSchema.safeParse(process.env);

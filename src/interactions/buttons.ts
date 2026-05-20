@@ -38,7 +38,6 @@ import {
 } from "../ui/closeCard.js";
 import { COLORS } from "../ui/colors.js";
 import {
-  buildBackToEventButton,
   buildEventButtons,
   buildEventCardFromGamma,
   buildEventEmbed,
@@ -46,15 +45,13 @@ import {
   eventsToSearchItems,
 } from "../ui/eventCard.js";
 import {
-  buildMarketButtons,
-  buildMarketEmbed,
   buildSearchControlsRow,
   buildSearchResultsEmbed,
   buildSearchSelectMenu,
   computeSearchPages,
   escapeMarkdown,
-  gammaMarketToCardData,
 } from "../ui/marketCard.js";
+import { renderMarketCardWithSummary } from "../ui/marketCardRender.js";
 import { buildPortfolioView } from "../ui/portfolio.js";
 import { truncate } from "../ui/text.js";
 import {
@@ -202,19 +199,10 @@ async function handleRefresh(interaction: ButtonInteraction) {
           (m) => m.conditionId === conditionId,
         );
         if (gamma) {
-          const cardData = gammaMarketToCardData(gamma, gammaEvent.slug);
-          const embed = buildMarketEmbed(cardData);
-          const buttons = buildMarketButtons(
-            gamma.conditionId,
-            gamma.slug,
-            gamma.active && !gamma.closed,
-            gammaEvent.slug,
-            gammaEvent.id,
-          );
-          buttons.addComponents(buildBackToEventButton(gammaEvent.id));
-          await interaction.editReply({
-            embeds: [embed],
-            components: [buttons],
+          await renderMarketCardWithSummary(interaction, gamma, {
+            eventSlug: gammaEvent.slug,
+            polyEventId: gammaEvent.id,
+            includeBackToEvent: true,
           });
           return;
         }
@@ -233,18 +221,9 @@ async function handleRefresh(interaction: ButtonInteraction) {
 
     const eventSlug = gamma.events?.[0]?.slug ?? null;
     const eventId = gamma.events?.[0]?.id ?? null;
-    const cardData = gammaMarketToCardData(gamma, eventSlug);
-    const embed = buildMarketEmbed(cardData);
-    const buttons = buildMarketButtons(
-      gamma.conditionId,
-      gamma.slug,
-      gamma.active && !gamma.closed,
+    await renderMarketCardWithSummary(interaction, gamma, {
       eventSlug,
-      eventId,
-    );
-    await interaction.editReply({
-      embeds: [embed],
-      components: [buttons],
+      polyEventId: eventId,
     });
   } catch (err) {
     logger.error("Refresh failed:", err);
@@ -429,10 +408,11 @@ async function handleChart(interaction: ButtonInteraction) {
     const rawTitle = gamma.groupItemTitle
       ? `${gamma.groupItemTitle} — ${gamma.question}`
       : gamma.question;
-    const png = renderPriceChart(points, {
+    const png = await renderPriceChart(points, {
       title: rawTitle,
       direction,
       timeframe: tf.pillLabel,
+      iconUrl: gamma.image || gamma.icon || null,
     });
     if (!png) {
       await ephemeralError("Couldn't render chart.");
@@ -510,22 +490,13 @@ async function handleChartBack(interaction: ButtonInteraction) {
         (m) => m.conditionId === conditionId,
       );
       if (gammaEvent && gamma) {
-        const cardData = gammaMarketToCardData(gamma, gammaEvent.slug);
-        const embed = buildMarketEmbed(cardData);
-        const buttons = buildMarketButtons(
-          gamma.conditionId,
-          gamma.slug,
-          gamma.active && !gamma.closed,
-          gammaEvent.slug,
-          gammaEvent.id,
-        );
         // Restore Back to Event so the user keeps the same affordances they
         // had before clicking Chart.
-        buttons.addComponents(buildBackToEventButton(gammaEvent.id));
-        await interaction.editReply({
-          embeds: [embed],
-          files: [],
-          components: [buttons],
+        await renderMarketCardWithSummary(interaction, gamma, {
+          eventSlug: gammaEvent.slug,
+          polyEventId: gammaEvent.id,
+          includeBackToEvent: true,
+          clearFiles: true,
         });
         return;
       }
@@ -544,19 +515,10 @@ async function handleChartBack(interaction: ButtonInteraction) {
 
     const eventSlug = gamma.events?.[0]?.slug ?? null;
     const eventId = gamma.events?.[0]?.id ?? null;
-    const cardData = gammaMarketToCardData(gamma, eventSlug);
-    const embed = buildMarketEmbed(cardData);
-    const buttons = buildMarketButtons(
-      gamma.conditionId,
-      gamma.slug,
-      gamma.active && !gamma.closed,
+    await renderMarketCardWithSummary(interaction, gamma, {
       eventSlug,
-      eventId,
-    );
-    await interaction.editReply({
-      embeds: [embed],
-      files: [],
-      components: [buttons],
+      polyEventId: eventId,
+      clearFiles: true,
     });
   } catch (err) {
     logger.error("Chart back failed:", err);

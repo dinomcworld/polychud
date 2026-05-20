@@ -13,15 +13,13 @@ import {
   eventsToSearchItems,
 } from "../ui/eventCard.js";
 import {
-  buildMarketButtons,
-  buildMarketEmbed,
   buildSearchControlsRow,
   buildSearchResultsEmbed,
   buildSearchSelectMenu,
   buildTrendingControlsRow,
   computeSearchPages,
-  gammaMarketToCardData,
 } from "../ui/marketCard.js";
+import { renderMarketCardWithSummary } from "../ui/marketCardRender.js";
 import { logger } from "../utils/logger.js";
 import type { Command } from "./types.js";
 
@@ -108,17 +106,8 @@ async function handleSearch(
       } else if (event.markets.length === 1) {
         const [m] = event.markets;
         if (!m) return;
-        const cardData = gammaMarketToCardData(m, event.slug);
-        const embed = buildMarketEmbed(cardData);
-        const buttons = buildMarketButtons(
-          m.conditionId,
-          m.slug,
-          m.active && !m.closed,
-          event.slug,
-        );
-        await interaction.editReply({
-          embeds: [embed],
-          components: [buttons],
+        await renderMarketCardWithSummary(interaction, m, {
+          eventSlug: event.slug,
         });
       }
       return;
@@ -288,17 +277,8 @@ async function handleViewBySlug(
   } else if (gammaEvent.markets.length === 1) {
     const [m] = gammaEvent.markets;
     if (!m) return;
-    const cardData = gammaMarketToCardData(m, gammaEvent.slug);
-    const embed = buildMarketEmbed(cardData);
-    const buttons = buildMarketButtons(
-      m.conditionId,
-      m.slug,
-      m.active && !m.closed,
-      gammaEvent.slug,
-    );
-    await interaction.editReply({
-      embeds: [embed],
-      components: [buttons],
+    await renderMarketCardWithSummary(interaction, m, {
+      eventSlug: gammaEvent.slug,
     });
   } else {
     await interaction.editReply({
@@ -339,17 +319,8 @@ async function handleViewById(
   } else if (gammaEvent.markets.length === 1) {
     const [m] = gammaEvent.markets;
     if (!m) return;
-    const cardData = gammaMarketToCardData(m, gammaEvent.slug);
-    const embed = buildMarketEmbed(cardData);
-    const buttons = buildMarketButtons(
-      m.conditionId,
-      m.slug,
-      m.active && !m.closed,
-      gammaEvent.slug,
-    );
-    await interaction.editReply({
-      embeds: [embed],
-      components: [buttons],
+    await renderMarketCardWithSummary(interaction, m, {
+      eventSlug: gammaEvent.slug,
     });
   } else {
     await interaction.editReply({
