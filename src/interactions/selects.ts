@@ -4,17 +4,12 @@ import {
   getMarketByConditionId,
 } from "../services/polymarket.js";
 import {
-  buildBackToEventButton,
   buildEventButtons,
   buildEventCardFromGamma,
   buildEventEmbed,
   buildEventSelectMenu,
 } from "../ui/eventCard.js";
-import {
-  buildMarketButtons,
-  buildMarketEmbed,
-  gammaMarketToCardData,
-} from "../ui/marketCard.js";
+import { renderMarketCardWithSummary } from "../ui/marketCardRender.js";
 import { logger } from "../utils/logger.js";
 import { showCloseBetPreview } from "./buttons.js";
 
@@ -87,19 +82,7 @@ async function handleMarketSelect(interaction: StringSelectMenuInteraction) {
 
     // Single market — show binary card
     const eventSlug = gamma.events?.[0]?.slug ?? null;
-    const cardData = gammaMarketToCardData(gamma, eventSlug);
-    const embed = buildMarketEmbed(cardData);
-    const buttons = buildMarketButtons(
-      gamma.conditionId,
-      gamma.slug,
-      gamma.active && !gamma.closed,
-      eventSlug,
-    );
-
-    await interaction.editReply({
-      embeds: [embed],
-      components: [buttons],
-    });
+    await renderMarketCardWithSummary(interaction, gamma, { eventSlug });
   } catch (err) {
     logger.error("Market select failed:", err);
     await interaction.followUp({
@@ -141,20 +124,10 @@ async function handleEventSelect(interaction: StringSelectMenuInteraction) {
     }
 
     const eventSlug = gamma.events?.[0]?.slug ?? null;
-    const cardData = gammaMarketToCardData(gamma, eventSlug);
-    const embed = buildMarketEmbed(cardData);
-    const buttons = buildMarketButtons(
-      gamma.conditionId,
-      gamma.slug,
-      gamma.active && !gamma.closed,
+    await renderMarketCardWithSummary(interaction, gamma, {
       eventSlug,
       polyEventId,
-    );
-    buttons.addComponents(buildBackToEventButton(polyEventId));
-
-    await interaction.editReply({
-      embeds: [embed],
-      components: [buttons],
+      includeBackToEvent: true,
     });
   } catch (err) {
     logger.error("Event select failed:", err);

@@ -23,6 +23,7 @@ export interface MarketCardData {
   imageUrl: string | null;
   status: string;
   outcomeLabel: string | null;
+  summary?: string | null;
 }
 
 /** Project a Gamma API market into the shape buildMarketEmbed expects. */
@@ -66,6 +67,11 @@ export function buildMarketEmbed(market: MarketCardData) {
     .setColor(market.status === "active" ? COLORS.GREEN : COLORS.GRAY)
     .setFooter({ text: "Virtual betting \u2022 Not real money" })
     .setTimestamp();
+
+  if (market.summary) {
+    // Discord embed description hard cap is 4096 chars; summary is ~300.
+    embed.setDescription(truncate(market.summary, 4000));
+  }
 
   const fields: APIEmbedField[] = [
     { name: "YES", value: `${yesPct}%`, inline: true },
