@@ -7,6 +7,7 @@ import {
 import { confirmClose } from "../interactions/customIds.js";
 import { computeCloseQuote } from "../services/betting.js";
 import { COLORS } from "./colors.js";
+import { outcomeLabel, resolveOutcomeLabels } from "./outcomeLabels.js";
 
 export interface ClosePreviewInput {
   betId: number;
@@ -16,6 +17,8 @@ export interface ClosePreviewInput {
   entryPrice: number;
   currentPrice: number;
   amount: number;
+  yesLabel?: string | null;
+  noLabel?: string | null;
   /** When true, render the "price refreshed" variant (different title + footer). */
   stale?: boolean;
   /** Confirm-button payload: callers pass the timestamp used in customId. */
@@ -35,6 +38,9 @@ export function buildClosePreviewEmbed(input: ClosePreviewInput): EmbedBuilder {
     ? `**Market:** [${question}](https://polymarket.com/event/${eventSlug})`
     : `**Market:** ${question}`;
 
+  const labels = resolveOutcomeLabels(input.yesLabel, input.noLabel);
+  const sideLabel = outcomeLabel(outcome, labels);
+
   const embed = new EmbedBuilder()
     .setTitle(
       input.stale ? "Price updated — confirm close?" : "Close bet early?",
@@ -43,7 +49,7 @@ export function buildClosePreviewEmbed(input: ClosePreviewInput): EmbedBuilder {
     .setDescription(
       [
         marketLine,
-        `**Your bet:** ${outcome.toUpperCase()} at ${(entryPrice * 100).toFixed(1)}%`,
+        `**Your bet:** ${sideLabel} at ${(entryPrice * 100).toFixed(1)}%`,
         `**Current price:** ${(currentPrice * 100).toFixed(1)}%`,
         "─".repeat(20),
         `**Staked:** ${amount.toLocaleString()} pts`,

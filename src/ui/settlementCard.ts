@@ -2,6 +2,7 @@ import { EmbedBuilder, type User } from "discord.js";
 import type { NewSettlement } from "../services/betting.js";
 import { COLORS } from "./colors.js";
 import { escapeMarkdown } from "./marketCard.js";
+import { outcomeLabel, resolveOutcomeLabels } from "./outcomeLabels.js";
 import { truncate } from "./text.js";
 
 export interface SettlementsEmbedInput {
@@ -35,9 +36,11 @@ function renderEntry(s: NewSettlement): string {
   const marketLine = s.eventSlug
     ? `[${marketTitle}](https://polymarket.com/event/${s.eventSlug})`
     : marketTitle;
+  const labels = resolveOutcomeLabels(s.yesLabel, s.noLabel);
+  const sideLabel = outcomeLabel(s.outcome, labels);
   return [
     `**${marketLine}**`,
-    `#${s.betId} — ${s.outcome.toUpperCase()} · ${statusLabel(s.status)} · Stake **${s.amount.toLocaleString()}** → **${s.actualPayout.toLocaleString()}** pts (**${pnlStr}**)`,
+    `#${s.betId} — ${sideLabel} · ${statusLabel(s.status)} · Stake **${s.amount.toLocaleString()}** → **${s.actualPayout.toLocaleString()}** pts (**${pnlStr}**)`,
   ].join("\n");
 }
 

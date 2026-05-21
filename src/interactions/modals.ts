@@ -20,6 +20,7 @@ import {
 } from "../services/polymarket.js";
 import { ensureGuildSettings, ensureUser } from "../services/users.js";
 import { COLORS } from "../ui/colors.js";
+import { outcomeLabel, resolveOutcomeLabels } from "../ui/outcomeLabels.js";
 import { truncate } from "../ui/text.js";
 import { requireGuildId } from "../utils/guards.js";
 import { logger } from "../utils/logger.js";
@@ -198,13 +199,18 @@ function buildBetConfirmEmbed(args: {
   potentialPayout: number;
   summary: string | null;
 }): EmbedBuilder {
+  const labels = resolveOutcomeLabels(
+    args.gamma.outcomes[0],
+    args.gamma.outcomes[1],
+  );
+  const label = outcomeLabel(args.outcome, labels);
   const embed = new EmbedBuilder()
     .setTitle("Confirm your bet")
     .setColor(COLORS.ORANGE)
     .setDescription(
       [
         `**Market:** ${args.gamma.question}`,
-        `**Outcome:** ${args.outcome.toUpperCase()} at ${args.pct}%`,
+        `**Outcome:** ${label} at ${args.pct}%`,
         `**Stake:** ${args.amount.toLocaleString()} pts`,
         `**Potential payout:** ${args.potentialPayout.toLocaleString()} pts (if you win)`,
       ].join("\n"),

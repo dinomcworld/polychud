@@ -17,6 +17,7 @@ import type {
 } from "../services/betting.js";
 import type { getUserStats } from "../services/users.js";
 import { signedColor } from "./colors.js";
+import { outcomeLabel, resolveOutcomeLabels } from "./outcomeLabels.js";
 import { buildPrevNext, paginate } from "./paginate.js";
 import { truncate } from "./text.js";
 
@@ -131,11 +132,16 @@ export function buildPortfolioView(
         : question;
 
       const pnlStr = pnl >= 0 ? `+${pnl}` : `${pnl}`;
+      const labels = resolveOutcomeLabels(
+        bet.market?.yesLabel,
+        bet.market?.noLabel,
+      );
+      const sideLabel = outcomeLabel(bet.outcome as "yes" | "no", labels);
 
       if (mode === "active") {
         return [
           `**${titleLine}**`,
-          `${bet.outcome.toUpperCase()} · **${bet.amount.toLocaleString()}** pts · P&L ${pnlStr} pts`,
+          `${sideLabel} · **${bet.amount.toLocaleString()}** pts · P&L ${pnlStr} pts`,
         ].join("\n");
       }
 
@@ -150,7 +156,7 @@ export function buildPortfolioView(
               : settled.status.toUpperCase();
       return [
         `**${titleLine}**`,
-        `${settled.outcome.toUpperCase()} · ${statusLabel} · **${settled.amount.toLocaleString()}** pts · P&L ${pnlStr} pts`,
+        `${sideLabel} · ${statusLabel} · **${settled.amount.toLocaleString()}** pts · P&L ${pnlStr} pts`,
       ].join("\n");
     });
 

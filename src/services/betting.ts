@@ -212,6 +212,8 @@ export interface NewSettlement {
   marketQuestion: string;
   marketConditionId: string;
   eventSlug: string | null;
+  yesLabel: string | null;
+  noLabel: string | null;
 }
 
 /**
@@ -283,6 +285,8 @@ export async function consumeNewSettlements(
     marketQuestion: b.market?.question ?? "(unknown market)",
     marketConditionId: b.market?.polymarketConditionId ?? "",
     eventSlug: b.market?.event?.slug ?? null,
+    yesLabel: b.market?.yesLabel ?? null,
+    noLabel: b.market?.noLabel ?? null,
   }));
 
   await db

@@ -46,6 +46,8 @@ export const markets = pgTable(
     question: text("question").notNull(),
     yesTokenId: varchar("yes_token_id", { length: 255 }),
     noTokenId: varchar("no_token_id", { length: 255 }),
+    yesLabel: varchar("yes_label", { length: 50 }),
+    noLabel: varchar("no_label", { length: 50 }),
     currentYesPrice: decimal("current_yes_price", {
       precision: 5,
       scale: 4,

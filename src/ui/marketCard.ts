@@ -18,6 +18,8 @@ export interface MarketCardData {
   eventSlug: string | null;
   yesPrice: number;
   noPrice: number;
+  yesLabel: string;
+  noLabel: string;
   volume24h: string | null;
   endDate: Date | null;
   imageUrl: string | null;
@@ -39,6 +41,8 @@ export function gammaMarketToCardData(
     eventSlug: eventSlug ?? null,
     yesPrice,
     noPrice: gamma.outcomePrices[1] ?? 1 - yesPrice,
+    yesLabel: gamma.outcomes[0] ?? "Yes",
+    noLabel: gamma.outcomes[1] ?? "No",
     volume24h: gamma.volume24hr ? String(gamma.volume24hr) : null,
     endDate: gamma.endDate ? new Date(gamma.endDate) : null,
     imageUrl: gamma.image || gamma.icon || null,
@@ -74,8 +78,8 @@ export function buildMarketEmbed(market: MarketCardData) {
   }
 
   const fields: APIEmbedField[] = [
-    { name: "YES", value: `${yesPct}%`, inline: true },
-    { name: "NO", value: `${noPct}%`, inline: true },
+    { name: truncate(market.yesLabel, 50), value: `${yesPct}%`, inline: true },
+    { name: truncate(market.noLabel, 50), value: `${noPct}%`, inline: true },
   ];
 
   if (market.volume24h) {
@@ -111,6 +115,8 @@ export function buildMarketButtons(
   isActive: boolean,
   eventSlug?: string | null,
   polyEventId?: string | null,
+  yesLabel: string = "Yes",
+  noLabel: string = "No",
 ) {
   const row = new ActionRowBuilder<ButtonBuilder>();
 
@@ -118,11 +124,11 @@ export function buildMarketButtons(
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`bet_yes_${conditionId}`)
-        .setLabel("Bet YES")
+        .setLabel(truncate(`Bet ${yesLabel}`, 30))
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
         .setCustomId(`bet_no_${conditionId}`)
-        .setLabel("Bet NO")
+        .setLabel(truncate(`Bet ${noLabel}`, 30))
         .setStyle(ButtonStyle.Danger),
     );
   }
@@ -161,6 +167,7 @@ export interface SearchResultItem {
   question: string;
   yesPrice: number;
   outcomeLabel: string | null;
+  yesLabel?: string | null;
   status?: string;
   eventSlug?: string | null;
   volume24h?: number | null;
@@ -215,7 +222,7 @@ export function buildSearchResultsEmbed(
     } else {
       if (r.outcomeLabel) meta.push(escapeMarkdown(r.outcomeLabel));
       const pct = (r.yesPrice * 100).toFixed(1);
-      meta.push(`**${pct}%** YES`);
+      meta.push(`**${pct}%** ${escapeMarkdown(r.yesLabel ?? "Yes")}`);
     }
 
     if (r.volume24h && r.volume24h > 0) {
@@ -261,7 +268,7 @@ export function buildSearchSelectMenu(
         const desc =
           r.status === "resolved" || r.status === "closed"
             ? "Resolved"
-            : `${pct}% YES`;
+            : `${pct}% ${r.yesLabel ?? "Yes"}`;
         return {
           label: label.length > 100 ? `${label.slice(0, 97)}...` : label,
           description: desc,

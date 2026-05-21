@@ -52,6 +52,7 @@ import {
   escapeMarkdown,
 } from "../ui/marketCard.js";
 import { renderMarketCardWithSummary } from "../ui/marketCardRender.js";
+import { outcomeLabel, resolveOutcomeLabels } from "../ui/outcomeLabels.js";
 import { buildPortfolioView } from "../ui/portfolio.js";
 import { truncate } from "../ui/text.js";
 import {
@@ -162,9 +163,13 @@ async function handleBetButton(interaction: ButtonInteraction) {
     interaction.message.id,
   );
 
+  const cached = getCachedMarket(conditionId);
+  const labels = resolveOutcomeLabels(cached?.outcomes[0], cached?.outcomes[1]);
+  const label = truncate(outcomeLabel(outcome, labels), 30);
+
   const modal = new ModalBuilder()
     .setCustomId(betModal.encode(conditionId, outcome))
-    .setTitle(`Place a ${outcome.toUpperCase()} bet`);
+    .setTitle(`Place a ${label} bet`);
 
   const amountInput = new TextInputBuilder()
     .setCustomId("bet_amount")
@@ -856,6 +861,8 @@ export async function showCloseBetPreview(
       entryPrice,
       currentPrice,
       amount: bet.amount,
+      yesLabel: bet.market.yesLabel,
+      noLabel: bet.market.noLabel,
       timestamp,
     });
     const row = buildClosePreviewComponents(betId, timestamp);
@@ -920,6 +927,8 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
         entryPrice,
         currentPrice,
         amount: bet.amount,
+        yesLabel: bet.market.yesLabel,
+        noLabel: bet.market.noLabel,
         stale: true,
         timestamp: newTimestamp,
       });
