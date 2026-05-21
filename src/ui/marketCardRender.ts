@@ -52,6 +52,8 @@ export async function renderMarketCardWithSummary(
     gamma.active && !gamma.closed,
     eventSlug,
     polyEventId,
+    cardData.yesLabel,
+    cardData.noLabel,
   );
   if (options.includeBackToEvent && polyEventId) {
     buttons.addComponents(buildBackToEventButton(polyEventId));

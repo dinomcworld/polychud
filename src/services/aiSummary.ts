@@ -10,21 +10,24 @@ interface CacheEntry {
 const summaryCache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<string | null>>();
 
-const SYSTEM_PROMPT = `You are a summarizer for Polymarket market descriptions. Your job is to extract only what a trader needs to make a decision, nothing more.
+function buildSystemPrompt(yesLabel: string, noLabel: string): string {
+  return `You are a summarizer for Polymarket market descriptions. Your job is to extract only what a trader needs to make a decision, nothing more.
 
 Output format (use this exact structure, no extra commentary):
-- YES if: [the core condition that resolves YES, in one sentence]
-- NO if: [the core condition that resolves NO, in one sentence]
+- ${yesLabel} if: [the core condition that resolves to "${yesLabel}", in one sentence]
+- ${noLabel} if: [the core condition that resolves to "${noLabel}", in one sentence]
 - Deadline: [date and time, including timezone]
 - Key rules: [1-3 bullet points covering edge cases, exclusions, or unusual triggers that could surprise a trader — only include if they materially change the outcome]
 - Source: [resolution source in a few words]
 
 Rules:
+- "${yesLabel}" is the YES-side resolution outcome; "${noLabel}" is the NO-side. Map each condition to the correct side based on the description's resolution rules, not on which label happens to appear first in the description text.
 - Be ruthlessly concise. No filler, no restating the question, no disclaimers.
 - Preserve exact dates, times, timezones, thresholds, and numbers.
 - Keep edge cases that flip the outcome (e.g. "announcement counts even if effective later", "temporary actions don't count"). Drop boilerplate.
 - If the description is ambiguous or missing a field, write "not specified" for that field.
 - Never add information not in the description. Never speculate on probability or give trading advice.`;
+}
 
 function isEnabled(): boolean {
   return Boolean(
@@ -76,12 +79,16 @@ async function fetchSummaryFromOpenRouter(
   const models = config.OPENROUTER_MODEL;
   if (!apiKey || models.length === 0) return null;
 
-  const userContent = `Question: ${market.question}\n\nDescription:\n${market.description}`;
+  const yesLabel = market.outcomes[0] ?? "Yes";
+  const noLabel = market.outcomes[1] ?? "No";
+  const systemPrompt = buildSystemPrompt(yesLabel, noLabel);
+  const userContent = `Resolution outcomes:\n- YES side: "${yesLabel}"\n- NO side: "${noLabel}"\n\nQuestion: ${market.question}\n\nDescription:\n${market.description}`;
 
   for (const model of models) {
     const result = await tryModel(
       apiKey,
       model,
+      systemPrompt,
       userContent,
       market.conditionId,
     );
@@ -107,6 +114,7 @@ type ModelResult =
 async function tryModel(
   apiKey: string,
   model: string,
+  systemPrompt: string,
   userContent: string,
   conditionId: string,
 ): Promise<ModelResult> {
@@ -133,7 +141,7 @@ async function tryModel(
           // option — those endpoints 400 on `reasoning.enabled: false`.
           max_tokens: 2500,
           messages: [
-            { role: "system", content: SYSTEM_PROMPT },
+            { role: "system", content: systemPrompt },
             { role: "user", content: userContent },
           ],
         }),

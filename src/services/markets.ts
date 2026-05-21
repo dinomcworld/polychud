@@ -42,6 +42,8 @@ export async function upsertMarket(gamma: GammaMarket, eventDbId: number) {
     question: gamma.question,
     yesTokenId,
     noTokenId,
+    yesLabel: gamma.outcomes[0] ?? null,
+    noLabel: gamma.outcomes[1] ?? null,
     currentYesPrice: String(yesPrice),
     currentNoPrice: String(noPrice),
     endDate: gamma.endDate ? new Date(gamma.endDate) : null,

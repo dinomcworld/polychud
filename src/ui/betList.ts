@@ -12,6 +12,7 @@ import type {
   getUserSettledBets,
 } from "../services/betting.js";
 import { COLORS } from "./colors.js";
+import { outcomeLabel, resolveOutcomeLabels } from "./outcomeLabels.js";
 import { buildPrevNext, paginate } from "./paginate.js";
 import { truncate } from "./text.js";
 
@@ -71,7 +72,12 @@ export function buildBetListView(
       .setPlaceholder("Select a bet to close early...")
       .addOptions(
         (pageBets as ActiveBet[]).map((bet) => {
-          const label = `#${bet.id} — ${bet.outcome.toUpperCase()} · ${bet.amount.toLocaleString()} pts`;
+          const labels = resolveOutcomeLabels(
+            bet.market?.yesLabel,
+            bet.market?.noLabel,
+          );
+          const sideLabel = outcomeLabel(bet.outcome as "yes" | "no", labels);
+          const label = `#${bet.id} — ${sideLabel} · ${bet.amount.toLocaleString()} pts`;
           const desc = bet.market
             ? truncate(bet.market.question, 100)
             : `Market #${bet.marketId}`;
@@ -130,8 +136,14 @@ function buildActiveField(bet: ActiveBet) {
     Math.floor(bet.amount * (currentPrice / entryPrice)) - bet.amount;
   const pnlStr = unrealizedPnL >= 0 ? `+${unrealizedPnL}` : `${unrealizedPnL}`;
 
+  const labels = resolveOutcomeLabels(
+    bet.market?.yesLabel,
+    bet.market?.noLabel,
+  );
+  const sideLabel = outcomeLabel(bet.outcome as "yes" | "no", labels);
+
   return {
-    name: `#${bet.id} — ${bet.outcome.toUpperCase()}`,
+    name: `#${bet.id} — ${sideLabel}`,
     value: [
       titleLine,
       `Stake: **${bet.amount.toLocaleString()}** pts`,
@@ -185,8 +197,14 @@ function buildSettledField(bet: SettledBet) {
     lines.push(`Settled <t:${unix}:R>`);
   }
 
+  const labels = resolveOutcomeLabels(
+    bet.market?.yesLabel,
+    bet.market?.noLabel,
+  );
+  const sideLabel = outcomeLabel(bet.outcome as "yes" | "no", labels);
+
   return {
-    name: `#${bet.id} — ${bet.outcome.toUpperCase()} · ${statusLabel}`,
+    name: `#${bet.id} — ${sideLabel} · ${statusLabel}`,
     value: lines.join("\n"),
   };
 }
