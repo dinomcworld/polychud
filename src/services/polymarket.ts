@@ -213,7 +213,8 @@ function safeJsonParse<T>(str: string | T | null | undefined, fallback: T): T {
   if (str == null) return fallback;
   if (typeof str !== "string") return str;
   try {
-    return JSON.parse(str);
+    const parsed = JSON.parse(str);
+    return parsed ?? fallback;
   } catch {
     return fallback;
   }
