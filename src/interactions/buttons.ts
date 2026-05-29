@@ -5,6 +5,7 @@ import {
   type ButtonInteraction,
   ButtonStyle,
   EmbedBuilder,
+  LabelBuilder,
   MessageFlags,
   ModalBuilder,
   TextInputBuilder,
@@ -182,15 +183,16 @@ async function handleBetButton(interaction: ButtonInteraction) {
 
   const amountInput = new TextInputBuilder()
     .setCustomId("bet_amount")
-    .setLabel("Amount (points)")
     .setStyle(TextInputStyle.Short)
     .setPlaceholder("e.g., 100")
     .setRequired(true)
     .setMinLength(1)
     .setMaxLength(10);
 
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(amountInput),
+  modal.setLabelComponents(
+    new LabelBuilder()
+      .setLabel("Amount (points)")
+      .setTextInputComponent(amountInput),
   );
 
   await interaction.showModal(modal);
