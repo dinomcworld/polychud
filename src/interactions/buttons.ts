@@ -21,6 +21,8 @@ import {
 import { config } from "../config.js";
 import {
   closeBet,
+  closeCooldownMessage,
+  closeCooldownRemainingMs,
   getBetById,
   getUserActiveBets,
   getUserSettledBets,
@@ -35,7 +37,11 @@ import {
   getMidpointPrice,
   searchMarkets,
 } from "../services/polymarket.js";
-import { ensureUser, getUserStats } from "../services/users.js";
+import {
+  ensureGuildSettings,
+  ensureUser,
+  getUserStats,
+} from "../services/users.js";
 import { buildBetListView } from "../ui/betList.js";
 import { renderPriceChart } from "../ui/chart.js";
 import {
@@ -883,6 +889,23 @@ export async function showCloseBetPreview(
     if (bet.status !== "pending") {
       await interaction.editReply({
         content: `This bet is already ${bet.status}. Cannot close.`,
+      });
+      return;
+    }
+
+    // Block manual early close while on cooldown, before showing a confirm
+    // button. closeBet re-checks this authoritatively.
+    const settings = await ensureGuildSettings(guildId);
+    const cooldownRemaining = closeCooldownRemainingMs(
+      bet.placedAt,
+      settings.closeBetCooldownHours,
+    );
+    if (cooldownRemaining > 0) {
+      await interaction.editReply({
+        content: closeCooldownMessage(
+          cooldownRemaining,
+          settings.closeBetCooldownHours,
+        ),
       });
       return;
     }

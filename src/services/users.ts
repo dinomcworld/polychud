@@ -24,6 +24,7 @@ export async function ensureGuildSettings(guildId: string) {
       maxBet: config.DEFAULT_MAX_BET,
       minBet: config.DEFAULT_MIN_BET,
       dailyBonus: config.DEFAULT_DAILY_BONUS,
+      closeBetCooldownHours: config.DEFAULT_CLOSE_BET_COOLDOWN_HOURS,
     })
     .onConflictDoNothing()
     .returning();

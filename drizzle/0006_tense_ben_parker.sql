@@ -1,0 +1,1 @@
+ALTER TABLE "guild_settings" ADD COLUMN "close_bet_cooldown_hours" integer DEFAULT 24 NOT NULL;

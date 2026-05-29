@@ -33,6 +33,13 @@ const envSchema = z.object({
   MAX_ACTIVE_BETS_PER_USER: z.coerce.number().int().positive().default(10),
   MAX_ACTIVE_BETS_PER_MARKET: z.coerce.number().int().positive().default(3),
   MAX_PAYOUT_MULTIPLIER: z.coerce.number().positive().default(20),
+  // Minimum hours a bet must be held before the user can manually close it
+  // early (anti-spam). 0 disables the cooldown. Does not affect auto-resolve.
+  DEFAULT_CLOSE_BET_COOLDOWN_HOURS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(24),
 
   // Logging
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),

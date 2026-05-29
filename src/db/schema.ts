@@ -170,6 +170,11 @@ export const guildSettings = pgTable("guild_settings", {
   maxBet: integer("max_bet").notNull().default(500),
   minBet: integer("min_bet").notNull().default(10),
   dailyBonus: integer("daily_bonus").notNull().default(100),
+  // Hours a bet must be held before it can be manually closed early. 0
+  // disables the cooldown. Auto-resolve / settlement ignores this.
+  closeBetCooldownHours: integer("close_bet_cooldown_hours")
+    .notNull()
+    .default(24),
   bettingChannelId: varchar("betting_channel_id", { length: 20 }),
   notificationsEnabled: boolean("notifications_enabled")
     .notNull()
