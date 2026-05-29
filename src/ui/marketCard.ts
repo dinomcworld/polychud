@@ -338,6 +338,45 @@ export function buildTrendingControlsRow(
   return row;
 }
 
+export function buildNewControlsRow(
+  page: number,
+  totalPages: number,
+): ActionRowBuilder<ButtonBuilder> | null {
+  if (totalPages <= 1) return null;
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`new_page_${page - 1}`)
+      .setLabel("◀ Prev")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page <= 0),
+    new ButtonBuilder()
+      .setCustomId(`new_page_${page + 1}`)
+      .setLabel("Next ▶")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page >= totalPages - 1),
+  );
+}
+
+export function buildCategoryControlsRow(
+  tagSlug: string,
+  page: number,
+  totalPages: number,
+): ActionRowBuilder<ButtonBuilder> | null {
+  if (totalPages <= 1) return null;
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`cat_page_${page - 1}_${tagSlug}`)
+      .setLabel("◀ Prev")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page <= 0),
+    new ButtonBuilder()
+      .setCustomId(`cat_page_${page + 1}_${tagSlug}`)
+      .setLabel("Next ▶")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page >= totalPages - 1),
+  );
+}
+
 export function computeSearchPages(
   results: SearchResultItem[],
   showResolved: boolean,

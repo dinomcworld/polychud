@@ -81,10 +81,12 @@ const marketCache = new TTLCache<GammaMarket>();
 const eventCache = new TTLCache<GammaEvent>();
 const priceCache = new TTLCache<number>();
 const historyCache = new TTLCache<PricePoint[]>();
+const tagsCache = new TTLCache<GammaTag[]>();
 
 const MARKET_CACHE_TTL = config.ON_DEMAND_CACHE_TTL_MS; // 60s
 const PRICE_CACHE_TTL = 10_000; // 10s
 const HISTORY_CACHE_TTL = 60_000; // 60s — bucket boundaries are coarse anyway
+const TAGS_CACHE_TTL = 60 * 60_000; // 1h — Polymarket categories rarely change
 
 export interface PricePoint {
   t: number; // unix seconds
@@ -92,6 +94,12 @@ export interface PricePoint {
 }
 
 export type PriceHistoryInterval = "1h" | "6h" | "1d" | "1w" | "1m" | "max";
+
+export interface GammaTag {
+  id: string;
+  slug: string;
+  label: string;
+}
 
 // ─── Fetch helpers ────────────────────────────────────────────────────────────
 
@@ -269,6 +277,115 @@ export async function getTrendingMarkets(
   }
 
   return results;
+}
+
+/**
+ * Newly-listed multi-day events. `order=createdAt` is unusable on Polymarket —
+ * the top of that sort is dominated by auto-generated 5-minute crypto up/down
+ * markets. `order=startDate` ("recently went live") plus an `end_date_min`
+ * floor reliably surfaces substantive multi-day stuff.
+ */
+export async function getNewEvents(
+  limit: number = 50,
+  minDaysOut: number = 7,
+): Promise<GammaEvent[]> {
+  const endDateMin = new Date(
+    Date.now() + minDaysOut * 86_400_000,
+  ).toISOString();
+  const params = new URLSearchParams({
+    active: "true",
+    closed: "false",
+    order: "startDate",
+    ascending: "false",
+    end_date_min: endDateMin,
+    liquidity_min: "1000",
+    // Sports floods this list with daily auto-generated match markets. Users
+    // who want sports can browse `/market category sports` explicitly.
+    exclude_tag_id: "1",
+    limit: String(limit),
+  });
+  const url = `${config.POLYMARKET_GAMMA_URL}/events?${params}`;
+  const response = await fetchWithRetry(url);
+  const raw = (await response.json()) as RawApiObject[];
+  const results = raw.map(parseEvent);
+
+  for (const event of results) {
+    eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
+    for (const m of event.markets) {
+      if (!m.conditionId) continue;
+      const withParent = { ...m, events: [event] };
+      marketCache.set(`market:${m.conditionId}`, withParent, MARKET_CACHE_TTL);
+    }
+  }
+  return results;
+}
+
+export async function getEventsByTag(
+  tagSlug: string,
+  limit: number = 50,
+): Promise<GammaEvent[]> {
+  const params = new URLSearchParams({
+    active: "true",
+    closed: "false",
+    order: "volume24hr",
+    ascending: "false",
+    tag_slug: tagSlug,
+    limit: String(limit),
+  });
+  const url = `${config.POLYMARKET_GAMMA_URL}/events?${params}`;
+  const response = await fetchWithRetry(url);
+  const raw = (await response.json()) as RawApiObject[];
+  const results = raw.map(parseEvent);
+
+  for (const event of results) {
+    eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
+    for (const m of event.markets) {
+      if (!m.conditionId) continue;
+      const withParent = { ...m, events: [event] };
+      marketCache.set(`market:${m.conditionId}`, withParent, MARKET_CACHE_TTL);
+    }
+  }
+  return results;
+}
+
+/**
+ * Tags ordered by id asc — the lowest IDs are Polymarket's "founding"
+ * top-level categories (Sports, Politics, Crypto, …). Filtered to tags that
+ * appear on at least one currently-active event so autocomplete doesn't
+ * surface stale categories with nothing to browse. `/tags` itself has no
+ * has-events field, so we aggregate from a snapshot of top events.
+ */
+export async function getAllTags(): Promise<GammaTag[]> {
+  const cached = tagsCache.get("all");
+  if (cached) return cached;
+
+  const tagsUrl = `${config.POLYMARKET_GAMMA_URL}/tags?order=id&ascending=true&limit=500`;
+  const eventsUrl =
+    `${config.POLYMARKET_GAMMA_URL}/events` +
+    `?active=true&closed=false&order=volume24hr&ascending=false&limit=500`;
+  const [tagsResponse, eventsResponse] = await Promise.all([
+    fetchWithRetry(tagsUrl),
+    fetchWithRetry(eventsUrl),
+  ]);
+  const rawTags = (await tagsResponse.json()) as RawApiObject[];
+  const rawEvents = (await eventsResponse.json()) as RawApiObject[];
+
+  const liveSlugs = new Set<string>();
+  for (const e of rawEvents) {
+    for (const t of (e.tags ?? []) as RawApiObject[]) {
+      if (t.slug) liveSlugs.add(String(t.slug));
+    }
+  }
+
+  const tags: GammaTag[] = rawTags
+    .map((t) => ({
+      id: String(t.id),
+      slug: String(t.slug ?? ""),
+      label: String(t.label ?? ""),
+    }))
+    .filter((t) => t.slug && t.label && liveSlugs.has(t.slug));
+  tagsCache.set("all", tags, TAGS_CACHE_TTL);
+  return tags;
 }
 
 export async function getEventBySlug(slug: string): Promise<GammaEvent | null> {

@@ -4,7 +4,7 @@ import { db } from "../db/index.js";
 import { bets, guildMembers, markets, users } from "../db/schema.js";
 import { logger } from "../utils/logger.js";
 import { getMidpointPrice } from "./polymarket.js";
-import { ensureUser } from "./users.js";
+import { ensureGuildSettings, ensureUser } from "./users.js";
 
 export interface PlaceBetResult {
   success: true;
@@ -329,6 +329,29 @@ export function computeCloseQuote(
   };
 }
 
+/** Remaining milliseconds until a bet placed at `placedAt` clears the guild's
+ * manual close cooldown. Returns 0 when it can be closed now (cooldown disabled
+ * or already elapsed). Auto-resolve / settlement does not consult this. */
+export function closeCooldownRemainingMs(
+  placedAt: Date,
+  cooldownHours: number,
+): number {
+  if (cooldownHours <= 0) return 0;
+  const readyAt = placedAt.getTime() + cooldownHours * 3_600_000;
+  return Math.max(0, readyAt - Date.now());
+}
+
+/** Friendly "on cooldown" message with a Discord relative timestamp for when
+ * the bet becomes closeable. Shared by the preview and the authoritative
+ * close so the wording can't drift. */
+export function closeCooldownMessage(
+  remainingMs: number,
+  cooldownHours: number,
+): string {
+  const readyUnix = Math.floor((Date.now() + remainingMs) / 1000);
+  return `This bet is on a ${cooldownHours}h close cooldown — you can close it <t:${readyUnix}:R>.`;
+}
+
 export interface CloseBetSuccess {
   success: true;
   question: string;
@@ -352,6 +375,7 @@ export async function closeBet(
   guildId: string,
 ): Promise<CloseBetSuccess | CloseBetError> {
   const { member } = await ensureUser(discordId, guildId);
+  const settings = await ensureGuildSettings(guildId);
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -367,6 +391,21 @@ export async function closeBet(
         throw new Error("This bet belongs to a different server.");
       if (lockedBet.status !== "pending")
         throw new Error(`Bet is already ${lockedBet.status}.`);
+
+      // Manual early-close cooldown (anti-spam). Auto-resolve never reaches
+      // here, so settlement is unaffected.
+      const cooldownRemaining = closeCooldownRemainingMs(
+        lockedBet.placedAt,
+        settings.closeBetCooldownHours,
+      );
+      if (cooldownRemaining > 0) {
+        throw new Error(
+          closeCooldownMessage(
+            cooldownRemaining,
+            settings.closeBetCooldownHours,
+          ),
+        );
+      }
 
       // Verify ownership via guild member
       const [lockedMember] = await tx

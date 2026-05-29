@@ -171,6 +171,41 @@ export const portfolioToggle = {
   },
 };
 
+// ─── Leaderboard pagination + refresh ───────────────────────────────────────
+
+/** Splits a `{sort}_{page}` tail. Sort values are single alphabetic words
+ * (net/portfolio/points/skill/average) with no underscores, so the page is
+ * whatever follows the last underscore. Legacy IDs omit the page (just
+ * `{sort}`); we default to page 0 in that case. */
+function decodeLeaderboardTail(
+  rest: string,
+): Decoded<{ sort: string; page: number }> {
+  const lastUnderscore = rest.lastIndexOf("_");
+  if (lastUnderscore < 0) {
+    return rest ? { sort: rest, page: 0 } : null;
+  }
+  const maybePage = Number(rest.slice(lastUnderscore + 1));
+  if (!Number.isFinite(maybePage)) {
+    // No trailing page (legacy) — treat the whole thing as the sort.
+    return { sort: rest, page: 0 };
+  }
+  return { sort: rest.slice(0, lastUnderscore), page: maybePage };
+}
+
+export const leaderboardPage = {
+  prefix: "leaderboard_page_",
+  encode: (sort: string, page: number) => `leaderboard_page_${sort}_${page}`,
+  decode: (id: string) =>
+    decodeLeaderboardTail(id.slice("leaderboard_page_".length)),
+};
+
+export const leaderboardRefresh = {
+  prefix: "leaderboard_refresh_",
+  encode: (sort: string, page: number) => `leaderboard_refresh_${sort}_${page}`,
+  decode: (id: string) =>
+    decodeLeaderboardTail(id.slice("leaderboard_refresh_".length)),
+};
+
 // ─── Market search pagination + resolved toggle ─────────────────────────────
 
 /** Discord caps customId at 100 chars; encoded query is clipped to 60. */

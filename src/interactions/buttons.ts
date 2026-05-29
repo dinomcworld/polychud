@@ -5,16 +5,24 @@ import {
   type ButtonInteraction,
   ButtonStyle,
   EmbedBuilder,
+  LabelBuilder,
   MessageFlags,
   ModalBuilder,
+  TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
 import { buildLeaderboardView } from "../commands/leaderboard.js";
-import { renderTrendingView } from "../commands/market.js";
+import {
+  renderCategoryView,
+  renderNewView,
+  renderTrendingView,
+} from "../commands/market.js";
 import { config } from "../config.js";
 import {
   closeBet,
+  closeCooldownMessage,
+  closeCooldownRemainingMs,
   getBetById,
   getUserActiveBets,
   getUserSettledBets,
@@ -29,7 +37,11 @@ import {
   getMidpointPrice,
   searchMarkets,
 } from "../services/polymarket.js";
-import { ensureUser, getUserStats } from "../services/users.js";
+import {
+  ensureGuildSettings,
+  ensureUser,
+  getUserStats,
+} from "../services/users.js";
 import { buildBetListView } from "../ui/betList.js";
 import { renderPriceChart } from "../ui/chart.js";
 import {
@@ -67,6 +79,8 @@ import {
   betsToggle,
   confirmBet,
   confirmClose,
+  leaderboardPage,
+  leaderboardRefresh,
   portfolioPage,
   portfolioRefresh,
   portfolioToggle,
@@ -107,11 +121,14 @@ const PREFIX_ROUTES: Array<[string, ButtonHandler]> = [
   [portfolioPage.prefix, handlePortfolioPage],
   [portfolioRefresh.prefix, handlePortfolioRefresh],
   [portfolioToggle.prefix, handlePortfolioToggle],
-  ["leaderboard_refresh_", handleLeaderboardRefresh],
+  [leaderboardPage.prefix, handleLeaderboardPage],
+  [leaderboardRefresh.prefix, handleLeaderboardRefresh],
   [searchResolvedToggle.showPrefix, handleToggleSearchResolved],
   [searchResolvedToggle.hidePrefix, handleToggleSearchResolved],
   [searchPage.prefix, handleSearchPage],
   ["trending_page_", handleTrendingPage],
+  ["new_page_", handleNewPage],
+  ["cat_page_", handleCategoryPage],
   ["show_resolved_", handleToggleResolved],
   ["hide_resolved_", handleToggleResolved],
   ["back_event_", handleBackToEvent],
@@ -167,21 +184,44 @@ async function handleBetButton(interaction: ButtonInteraction) {
   const labels = resolveOutcomeLabels(cached?.outcomes[0], cached?.outcomes[1]);
   const label = truncate(outcomeLabel(outcome, labels), 30);
 
+  // Surface the user's current balance in the modal so they know how much
+  // they have before deciding a stake. Best-effort: a lookup failure (or DM,
+  // where there's no guild balance) just omits the line — never blocks the bet.
+  let balanceNote: string | null = null;
+  if (interaction.guildId) {
+    try {
+      const { member } = await ensureUser(
+        interaction.user.id,
+        interaction.guildId,
+      );
+      balanceNote = `Your balance: **${member.pointsBalance.toLocaleString()}** pts`;
+    } catch (err) {
+      logger.error("Failed to load balance for bet modal:", err);
+    }
+  }
+
   const modal = new ModalBuilder()
     .setCustomId(betModal.encode(conditionId, outcome))
     .setTitle(`Place a ${label} bet`);
 
   const amountInput = new TextInputBuilder()
     .setCustomId("bet_amount")
-    .setLabel("Amount (points)")
     .setStyle(TextInputStyle.Short)
     .setPlaceholder("e.g., 100")
     .setRequired(true)
     .setMinLength(1)
     .setMaxLength(10);
 
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(amountInput),
+  if (balanceNote) {
+    modal.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(balanceNote),
+    );
+  }
+
+  modal.addLabelComponents(
+    new LabelBuilder()
+      .setLabel("Amount (points)")
+      .setTextInputComponent(amountInput),
   );
 
   await interaction.showModal(modal);
@@ -640,6 +680,8 @@ async function handleConfirm(interaction: ButtonInteraction) {
     ? `${gamma.groupItemTitle} — ${gamma.question}`
     : gamma.question;
   const marketTitle = escapeMarkdown(rawMarketTitle);
+  const labels = resolveOutcomeLabels(gamma.outcomes[0], gamma.outcomes[1]);
+  const sideLabel = outcomeLabel(outcome, labels);
   const embed = new EmbedBuilder()
     .setTitle("Bet Placed!")
     .setColor(COLORS.GREEN)
@@ -650,7 +692,7 @@ async function handleConfirm(interaction: ButtonInteraction) {
     .setDescription(
       [
         `**Market:** [${truncate(marketTitle, 200)}](${marketUrl})`,
-        `**Outcome:** ${outcome.toUpperCase()} at ${pct}%`,
+        `**Outcome:** ${sideLabel} at ${pct}%`,
         `**Stake:** ${amount.toLocaleString()} pts`,
         `**Potential payout:** ${result.potentialPayout.toLocaleString()} pts`,
         `**New balance:** ${result.newBalance.toLocaleString()} pts`,
@@ -776,13 +818,28 @@ async function handlePortfolioRefresh(interaction: ButtonInteraction) {
 
 async function handleLeaderboardRefresh(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // leaderboard_refresh_{sort}
-  const sort = interaction.customId.slice("leaderboard_refresh_".length);
+  const decoded = leaderboardRefresh.decode(interaction.customId);
+  if (!decoded) return;
   const guildId = await requireGuildId(interaction);
   if (!guildId) return;
   const view = await buildLeaderboardView(
     guildId,
-    sort as import("../commands/leaderboard.js").LeaderboardSort,
+    decoded.sort as import("../commands/leaderboard.js").LeaderboardSort,
+    decoded.page,
+  );
+  await interaction.editReply(view);
+}
+
+async function handleLeaderboardPage(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  const decoded = leaderboardPage.decode(interaction.customId);
+  if (!decoded) return;
+  const guildId = await requireGuildId(interaction);
+  if (!guildId) return;
+  const view = await buildLeaderboardView(
+    guildId,
+    decoded.sort as import("../commands/leaderboard.js").LeaderboardSort,
+    decoded.page,
   );
   await interaction.editReply(view);
 }
@@ -832,6 +889,23 @@ export async function showCloseBetPreview(
     if (bet.status !== "pending") {
       await interaction.editReply({
         content: `This bet is already ${bet.status}. Cannot close.`,
+      });
+      return;
+    }
+
+    // Block manual early close while on cooldown, before showing a confirm
+    // button. closeBet re-checks this authoritatively.
+    const settings = await ensureGuildSettings(guildId);
+    const cooldownRemaining = closeCooldownRemainingMs(
+      bet.placedAt,
+      settings.closeBetCooldownHours,
+    );
+    if (cooldownRemaining > 0) {
+      await interaction.editReply({
+        content: closeCooldownMessage(
+          cooldownRemaining,
+          settings.closeBetCooldownHours,
+        ),
       });
       return;
     }
@@ -1101,6 +1175,61 @@ async function handleTrendingPage(interaction: ButtonInteraction) {
     await interaction.editReply(view);
   } catch (err) {
     logger.error("Trending page change failed:", err);
+    await interaction.followUp({
+      content: "Couldn't change page. Try again.",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+}
+
+async function handleNewPage(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  const page = parseInt(interaction.customId.slice("new_page_".length), 10);
+  if (Number.isNaN(page)) return;
+
+  try {
+    const view = await renderNewView(page);
+    if (!view) {
+      await interaction.editReply({
+        content: "No new markets found.",
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+    await interaction.editReply(view);
+  } catch (err) {
+    logger.error("New page change failed:", err);
+    await interaction.followUp({
+      content: "Couldn't change page. Try again.",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+}
+
+async function handleCategoryPage(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  // cat_page_{page}_{tagSlug}
+  const rest = interaction.customId.slice("cat_page_".length);
+  const sep = rest.indexOf("_");
+  if (sep < 0) return;
+  const page = parseInt(rest.slice(0, sep), 10);
+  const tagSlug = rest.slice(sep + 1);
+  if (Number.isNaN(page) || !tagSlug) return;
+
+  try {
+    const view = await renderCategoryView(tagSlug, page);
+    if (!view) {
+      await interaction.editReply({
+        content: `No markets found in category "${tagSlug}".`,
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+    await interaction.editReply(view);
+  } catch (err) {
+    logger.error("Category page change failed:", err);
     await interaction.followUp({
       content: "Couldn't change page. Try again.",
       flags: MessageFlags.Ephemeral,

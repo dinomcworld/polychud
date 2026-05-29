@@ -9,9 +9,16 @@ import {
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { bets, guildMembers, markets } from "../db/schema.js";
+import {
+  leaderboardPage,
+  leaderboardRefresh,
+} from "../interactions/customIds.js";
 import { COLORS } from "../ui/colors.js";
+import { buildPrevNext, paginate } from "../ui/paginate.js";
 import { requireGuildId } from "../utils/guards.js";
 import type { Command } from "./types.js";
+
+export const LEADERBOARD_PAGE_SIZE = 10;
 
 export type LeaderboardSort =
   | "net"
@@ -50,7 +57,7 @@ export const leaderboardCommand: Command = {
     const sort = (interaction.options.getString("sort") ||
       "net") as LeaderboardSort;
 
-    const view = await buildLeaderboardView(guildId, sort);
+    const view = await buildLeaderboardView(guildId, sort, 0);
     await interaction.editReply(view);
   },
 };
@@ -58,17 +65,21 @@ export const leaderboardCommand: Command = {
 export async function buildLeaderboardView(
   guildId: string,
   sort: LeaderboardSort,
+  page = 0,
 ): Promise<BaseMessageOptions> {
   const members = await db.query.guildMembers.findMany({
     where: eq(guildMembers.guildId, guildId),
     with: { user: true },
   });
 
-  const refreshRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  const refreshButton = (refreshPage: number) =>
     new ButtonBuilder()
-      .setCustomId(`leaderboard_refresh_${sort}`)
+      .setCustomId(leaderboardRefresh.encode(sort, refreshPage))
       .setLabel("Refresh")
-      .setStyle(ButtonStyle.Secondary),
+      .setStyle(ButtonStyle.Secondary);
+
+  const refreshRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    refreshButton(0),
   );
 
   if (members.length === 0) {
@@ -215,20 +226,41 @@ export async function buildLeaderboardView(
     };
   }
 
+  const {
+    slice: pageMembers,
+    page: safePage,
+    totalPages,
+  } = paginate(sorted, LEADERBOARD_PAGE_SIZE, page);
+
   const medals = ["🥇", "🥈", "🥉"];
-  const lines = sorted.slice(0, 10).map((m, i) => {
-    const rank = i < 3 ? medals[i] : `**${i + 1}.**`;
-    return `${rank} <@${m.user.discordId}> — ${formatValue(m)}`;
+  const offset = safePage * LEADERBOARD_PAGE_SIZE;
+  const lines = pageMembers.map((m, i) => {
+    const rank = offset + i;
+    const display = rank < 3 ? medals[rank] : `**${rank + 1}.**`;
+    return `${display} <@${m.user.discordId}> — ${formatValue(m)}`;
   });
+
+  const footerParts = [
+    `${sorted.length} player${sorted.length !== 1 ? "s" : ""} in this server`,
+  ];
+  if (totalPages > 1) footerParts.push(`Page ${safePage + 1}/${totalPages}`);
 
   const embed = new EmbedBuilder()
     .setTitle(title)
     .setDescription(lines.join("\n"))
     .setColor(COLORS.GOLD)
-    .setFooter({
-      text: `${sorted.length} player${sorted.length !== 1 ? "s" : ""} in this server`,
-    })
+    .setFooter({ text: footerParts.join(" • ") })
     .setTimestamp();
 
-  return { embeds: [embed], components: [refreshRow] };
+  const nav = new ActionRowBuilder<ButtonBuilder>();
+  if (totalPages > 1) {
+    nav.addComponents(
+      ...buildPrevNext(safePage, totalPages, (p) =>
+        leaderboardPage.encode(sort, p),
+      ),
+    );
+  }
+  nav.addComponents(refreshButton(safePage));
+
+  return { embeds: [embed], components: [nav] };
 }

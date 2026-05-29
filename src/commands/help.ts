@@ -29,6 +29,8 @@ export const helpCommand: Command = {
             "`/portfolio` — View your balance, stats, and active bets",
             "`/market search <query>` — Search Polymarket for markets",
             "`/market trending` — Top markets by volume",
+            "`/market new` — Newly-listed multi-day markets",
+            "`/market category <tag>` — Browse markets by category",
             "`/market view <url|id>` — View a market by Polymarket URL or ID",
             "`/bet list` — View your active bets (with close buttons)",
             "`/leaderboard [sort]` — Top predictors (points/skill/average)",

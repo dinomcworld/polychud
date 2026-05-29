@@ -33,6 +33,8 @@ bun run dev
 |---|---|
 | `/market search <query>` | Search Polymarket events |
 | `/market trending` | Show trending markets by volume |
+| `/market new` | Newly-listed multi-day markets |
+| `/market category <tag>` | Browse markets by category (autocomplete) |
 | `/market view <url\|id>` | View a market by Polymarket URL or ID |
 | `/bet list` | List your active bets |
 | `/portfolio` | View your points balance and stats |

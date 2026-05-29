@@ -95,7 +95,10 @@ export function buildPortfolioView(
 
   const betsWithPnL = bets.map((bet) => {
     const entryPrice = parseFloat(bet.oddsAtBet);
+    const entryPct = (entryPrice * 100).toFixed(1);
     let pnl: number;
+    // Current (active) or close (settled) price as a percentage, when known.
+    let currentPct: string | null = null;
     if (mode === "active") {
       const currentPrice = bet.market
         ? parseFloat(
@@ -104,12 +107,17 @@ export function buildPortfolioView(
               : bet.market.currentNoPrice || "0.5",
           )
         : entryPrice;
+      currentPct = (currentPrice * 100).toFixed(1);
       pnl = Math.floor(bet.amount * (currentPrice / entryPrice)) - bet.amount;
     } else {
-      const payout = (bet as SettledBet).actualPayout ?? 0;
+      const settled = bet as SettledBet;
+      const payout = settled.actualPayout ?? 0;
       pnl = payout - bet.amount;
+      if (settled.closePrice) {
+        currentPct = (parseFloat(settled.closePrice) * 100).toFixed(1);
+      }
     }
-    return { bet, pnl };
+    return { bet, pnl, entryPct, currentPct };
   });
 
   betsWithPnL.sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl));
@@ -121,7 +129,7 @@ export function buildPortfolioView(
   } = paginate(betsWithPnL, PORTFOLIO_BETS_PAGE_SIZE, page);
 
   if (pageBets.length > 0) {
-    const betLines = pageBets.map(({ bet, pnl }) => {
+    const betLines = pageBets.map(({ bet, pnl, entryPct, currentPct }) => {
       const question = bet.market
         ? truncate(bet.market.question, 70)
         : `Market #${bet.marketId}`;
@@ -132,6 +140,8 @@ export function buildPortfolioView(
         : question;
 
       const pnlStr = pnl >= 0 ? `+${pnl}` : `${pnl}`;
+      const oddsStr =
+        currentPct !== null ? `${entryPct}% → ${currentPct}%` : `${entryPct}%`;
       const labels = resolveOutcomeLabels(
         bet.market?.yesLabel,
         bet.market?.noLabel,
@@ -141,7 +151,7 @@ export function buildPortfolioView(
       if (mode === "active") {
         return [
           `**${titleLine}**`,
-          `${sideLabel} · **${bet.amount.toLocaleString()}** pts · P&L ${pnlStr} pts`,
+          `${sideLabel} · **${bet.amount.toLocaleString()}** pts · ${oddsStr} · P&L ${pnlStr} pts`,
         ].join("\n");
       }
 
@@ -156,7 +166,7 @@ export function buildPortfolioView(
               : settled.status.toUpperCase();
       return [
         `**${titleLine}**`,
-        `${sideLabel} · ${statusLabel} · **${settled.amount.toLocaleString()}** pts · P&L ${pnlStr} pts`,
+        `${sideLabel} · ${statusLabel} · **${settled.amount.toLocaleString()}** pts · ${oddsStr} · P&L ${pnlStr} pts`,
       ].join("\n");
     });
 

@@ -79,6 +79,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       );
       await command.execute(interaction);
       await maybeNotifySettlements(interaction);
+    } else if (interaction.isAutocomplete()) {
+      const command = commands.get(interaction.commandName);
+      if (command?.autocomplete) {
+        await command.autocomplete(interaction);
+      }
     } else if (interaction.isButton()) {
       await handleButton(interaction);
     } else if (interaction.isStringSelectMenu()) {
