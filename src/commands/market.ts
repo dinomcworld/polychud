@@ -1,7 +1,10 @@
 import { SlashCommandBuilder } from "discord.js";
 import {
+  getAllTags,
   getEventById,
   getEventBySlug,
+  getEventsByTag,
+  getNewEvents,
   getTrendingMarkets,
   searchMarkets,
 } from "../services/polymarket.js";
@@ -13,6 +16,8 @@ import {
   eventsToSearchItems,
 } from "../ui/eventCard.js";
 import {
+  buildCategoryControlsRow,
+  buildNewControlsRow,
   buildSearchControlsRow,
   buildSearchResultsEmbed,
   buildSearchSelectMenu,
@@ -39,6 +44,21 @@ export const marketCommand: Command = {
       sub.setName("trending").setDescription("Show trending markets by volume"),
     )
     .addSubcommand((sub) =>
+      sub.setName("new").setDescription("Newly-listed multi-day markets"),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("category")
+        .setDescription("Browse markets by category")
+        .addStringOption((opt) =>
+          opt
+            .setName("tag")
+            .setDescription("Category (e.g. Politics, Crypto, Tech)")
+            .setRequired(true)
+            .setAutocomplete(true),
+        ),
+    )
+    .addSubcommand((sub) =>
       sub
         .setName("view")
         .setDescription("View a market by Polymarket URL or ID")
@@ -59,8 +79,32 @@ export const marketCommand: Command = {
       await handleSearch(interaction);
     } else if (sub === "trending") {
       await handleTrending(interaction);
+    } else if (sub === "new") {
+      await handleNew(interaction);
+    } else if (sub === "category") {
+      await handleCategory(interaction);
     } else if (sub === "view") {
       await handleView(interaction);
+    }
+  },
+
+  async autocomplete(interaction) {
+    if (interaction.options.getSubcommand() !== "category") return;
+    const focused = interaction.options.getFocused().toLowerCase();
+    try {
+      const tags = await getAllTags();
+      const matches = tags
+        .filter(
+          (t) =>
+            t.label.toLowerCase().includes(focused) ||
+            t.slug.toLowerCase().includes(focused),
+        )
+        .slice(0, 25)
+        .map((t) => ({ name: t.label, value: t.slug }));
+      await interaction.respond(matches);
+    } catch (err) {
+      logger.error("Tag autocomplete failed:", err);
+      await interaction.respond([]);
     }
   },
 };
@@ -179,6 +223,96 @@ async function handleTrending(
     await interaction.editReply(view);
   } catch (err) {
     logger.error("Trending markets fetch failed:", err);
+    await interaction.editReply({
+      content: "Couldn't reach Polymarket right now. Try again in a moment.",
+    });
+  }
+}
+
+export const NEW_LIMIT = 50;
+export const NEW_MIN_DAYS = 7;
+
+export async function renderNewView(page = 0) {
+  const events = await getNewEvents(NEW_LIMIT, NEW_MIN_DAYS);
+  const searchItems = eventsToSearchItems(events);
+  if (searchItems.length === 0) return null;
+
+  const totalPages = computeSearchPages(searchItems, false);
+  const safePage = Math.min(Math.max(page, 0), totalPages - 1);
+  const embed = buildSearchResultsEmbed(
+    "New Markets",
+    searchItems,
+    false,
+    safePage,
+  );
+  const selectMenu = buildSearchSelectMenu(searchItems, false, safePage);
+  const controls = buildNewControlsRow(safePage, totalPages);
+  return {
+    embeds: [embed],
+    components: controls ? [selectMenu, controls] : [selectMenu],
+  };
+}
+
+async function handleNew(
+  interaction: import("discord.js").ChatInputCommandInteraction,
+) {
+  await interaction.deferReply();
+
+  try {
+    const view = await renderNewView(0);
+    if (!view) {
+      await interaction.editReply({ content: "No new markets found." });
+      return;
+    }
+    await interaction.editReply(view);
+  } catch (err) {
+    logger.error("New markets fetch failed:", err);
+    await interaction.editReply({
+      content: "Couldn't reach Polymarket right now. Try again in a moment.",
+    });
+  }
+}
+
+export const CATEGORY_LIMIT = 50;
+
+export async function renderCategoryView(tagSlug: string, page = 0) {
+  const events = await getEventsByTag(tagSlug, CATEGORY_LIMIT);
+  const searchItems = eventsToSearchItems(events);
+  if (searchItems.length === 0) return null;
+
+  const totalPages = computeSearchPages(searchItems, false);
+  const safePage = Math.min(Math.max(page, 0), totalPages - 1);
+  const embed = buildSearchResultsEmbed(
+    `Category: ${tagSlug}`,
+    searchItems,
+    false,
+    safePage,
+  );
+  const selectMenu = buildSearchSelectMenu(searchItems, false, safePage);
+  const controls = buildCategoryControlsRow(tagSlug, safePage, totalPages);
+  return {
+    embeds: [embed],
+    components: controls ? [selectMenu, controls] : [selectMenu],
+  };
+}
+
+async function handleCategory(
+  interaction: import("discord.js").ChatInputCommandInteraction,
+) {
+  await interaction.deferReply();
+  const tagSlug = interaction.options.getString("tag", true).trim();
+
+  try {
+    const view = await renderCategoryView(tagSlug, 0);
+    if (!view) {
+      await interaction.editReply({
+        content: `No markets found in category "${tagSlug}".`,
+      });
+      return;
+    }
+    await interaction.editReply(view);
+  } catch (err) {
+    logger.error("Category fetch failed:", err);
     await interaction.editReply({
       content: "Couldn't reach Polymarket right now. Try again in a moment.",
     });

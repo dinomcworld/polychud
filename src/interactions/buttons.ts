@@ -11,7 +11,11 @@ import {
   TextInputStyle,
 } from "discord.js";
 import { buildLeaderboardView } from "../commands/leaderboard.js";
-import { renderTrendingView } from "../commands/market.js";
+import {
+  renderCategoryView,
+  renderNewView,
+  renderTrendingView,
+} from "../commands/market.js";
 import { config } from "../config.js";
 import {
   closeBet,
@@ -112,6 +116,8 @@ const PREFIX_ROUTES: Array<[string, ButtonHandler]> = [
   [searchResolvedToggle.hidePrefix, handleToggleSearchResolved],
   [searchPage.prefix, handleSearchPage],
   ["trending_page_", handleTrendingPage],
+  ["new_page_", handleNewPage],
+  ["cat_page_", handleCategoryPage],
   ["show_resolved_", handleToggleResolved],
   ["hide_resolved_", handleToggleResolved],
   ["back_event_", handleBackToEvent],
@@ -1101,6 +1107,61 @@ async function handleTrendingPage(interaction: ButtonInteraction) {
     await interaction.editReply(view);
   } catch (err) {
     logger.error("Trending page change failed:", err);
+    await interaction.followUp({
+      content: "Couldn't change page. Try again.",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+}
+
+async function handleNewPage(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  const page = parseInt(interaction.customId.slice("new_page_".length), 10);
+  if (Number.isNaN(page)) return;
+
+  try {
+    const view = await renderNewView(page);
+    if (!view) {
+      await interaction.editReply({
+        content: "No new markets found.",
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+    await interaction.editReply(view);
+  } catch (err) {
+    logger.error("New page change failed:", err);
+    await interaction.followUp({
+      content: "Couldn't change page. Try again.",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+}
+
+async function handleCategoryPage(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  // cat_page_{page}_{tagSlug}
+  const rest = interaction.customId.slice("cat_page_".length);
+  const sep = rest.indexOf("_");
+  if (sep < 0) return;
+  const page = parseInt(rest.slice(0, sep), 10);
+  const tagSlug = rest.slice(sep + 1);
+  if (Number.isNaN(page) || !tagSlug) return;
+
+  try {
+    const view = await renderCategoryView(tagSlug, page);
+    if (!view) {
+      await interaction.editReply({
+        content: `No markets found in category "${tagSlug}".`,
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+    await interaction.editReply(view);
+  } catch (err) {
+    logger.error("Category page change failed:", err);
     await interaction.followUp({
       content: "Couldn't change page. Try again.",
       flags: MessageFlags.Ephemeral,
