@@ -8,6 +8,7 @@ import {
   LabelBuilder,
   MessageFlags,
   ModalBuilder,
+  TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
@@ -177,6 +178,22 @@ async function handleBetButton(interaction: ButtonInteraction) {
   const labels = resolveOutcomeLabels(cached?.outcomes[0], cached?.outcomes[1]);
   const label = truncate(outcomeLabel(outcome, labels), 30);
 
+  // Surface the user's current balance in the modal so they know how much
+  // they have before deciding a stake. Best-effort: a lookup failure (or DM,
+  // where there's no guild balance) just omits the line — never blocks the bet.
+  let balanceNote: string | null = null;
+  if (interaction.guildId) {
+    try {
+      const { member } = await ensureUser(
+        interaction.user.id,
+        interaction.guildId,
+      );
+      balanceNote = `Your balance: **${member.pointsBalance.toLocaleString()}** pts`;
+    } catch (err) {
+      logger.error("Failed to load balance for bet modal:", err);
+    }
+  }
+
   const modal = new ModalBuilder()
     .setCustomId(betModal.encode(conditionId, outcome))
     .setTitle(`Place a ${label} bet`);
@@ -189,7 +206,13 @@ async function handleBetButton(interaction: ButtonInteraction) {
     .setMinLength(1)
     .setMaxLength(10);
 
-  modal.setLabelComponents(
+  if (balanceNote) {
+    modal.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(balanceNote),
+    );
+  }
+
+  modal.addLabelComponents(
     new LabelBuilder()
       .setLabel("Amount (points)")
       .setTextInputComponent(amountInput),
