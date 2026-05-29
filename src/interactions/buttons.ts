@@ -71,6 +71,8 @@ import {
   betsToggle,
   confirmBet,
   confirmClose,
+  leaderboardPage,
+  leaderboardRefresh,
   portfolioPage,
   portfolioRefresh,
   portfolioToggle,
@@ -111,7 +113,8 @@ const PREFIX_ROUTES: Array<[string, ButtonHandler]> = [
   [portfolioPage.prefix, handlePortfolioPage],
   [portfolioRefresh.prefix, handlePortfolioRefresh],
   [portfolioToggle.prefix, handlePortfolioToggle],
-  ["leaderboard_refresh_", handleLeaderboardRefresh],
+  [leaderboardPage.prefix, handleLeaderboardPage],
+  [leaderboardRefresh.prefix, handleLeaderboardRefresh],
   [searchResolvedToggle.showPrefix, handleToggleSearchResolved],
   [searchResolvedToggle.hidePrefix, handleToggleSearchResolved],
   [searchPage.prefix, handleSearchPage],
@@ -646,6 +649,8 @@ async function handleConfirm(interaction: ButtonInteraction) {
     ? `${gamma.groupItemTitle} — ${gamma.question}`
     : gamma.question;
   const marketTitle = escapeMarkdown(rawMarketTitle);
+  const labels = resolveOutcomeLabels(gamma.outcomes[0], gamma.outcomes[1]);
+  const sideLabel = outcomeLabel(outcome, labels);
   const embed = new EmbedBuilder()
     .setTitle("Bet Placed!")
     .setColor(COLORS.GREEN)
@@ -656,7 +661,7 @@ async function handleConfirm(interaction: ButtonInteraction) {
     .setDescription(
       [
         `**Market:** [${truncate(marketTitle, 200)}](${marketUrl})`,
-        `**Outcome:** ${outcome.toUpperCase()} at ${pct}%`,
+        `**Outcome:** ${sideLabel} at ${pct}%`,
         `**Stake:** ${amount.toLocaleString()} pts`,
         `**Potential payout:** ${result.potentialPayout.toLocaleString()} pts`,
         `**New balance:** ${result.newBalance.toLocaleString()} pts`,
@@ -782,13 +787,28 @@ async function handlePortfolioRefresh(interaction: ButtonInteraction) {
 
 async function handleLeaderboardRefresh(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // leaderboard_refresh_{sort}
-  const sort = interaction.customId.slice("leaderboard_refresh_".length);
+  const decoded = leaderboardRefresh.decode(interaction.customId);
+  if (!decoded) return;
   const guildId = await requireGuildId(interaction);
   if (!guildId) return;
   const view = await buildLeaderboardView(
     guildId,
-    sort as import("../commands/leaderboard.js").LeaderboardSort,
+    decoded.sort as import("../commands/leaderboard.js").LeaderboardSort,
+    decoded.page,
+  );
+  await interaction.editReply(view);
+}
+
+async function handleLeaderboardPage(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  const decoded = leaderboardPage.decode(interaction.customId);
+  if (!decoded) return;
+  const guildId = await requireGuildId(interaction);
+  if (!guildId) return;
+  const view = await buildLeaderboardView(
+    guildId,
+    decoded.sort as import("../commands/leaderboard.js").LeaderboardSort,
+    decoded.page,
   );
   await interaction.editReply(view);
 }
