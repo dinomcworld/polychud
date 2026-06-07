@@ -173,35 +173,41 @@ export const portfolioToggle = {
 
 // ─── Leaderboard pagination + refresh ───────────────────────────────────────
 
-/** Splits a `{sort}_{page}` tail. Sort values are single alphabetic words
- * (net/portfolio/points/skill/average) with no underscores, so the page is
- * whatever follows the last underscore. Legacy IDs omit the page (just
- * `{sort}`); we default to page 0 in that case. */
+/** Splits a `{sort}_{all}_{page}` tail. Sort values are single alphabetic
+ * words (net/portfolio/points/skill/average) with no underscores, so the sort
+ * is always the first segment. `all` is a "1"/"0" flag for the show-all-players
+ * view. Legacy IDs omit `all` (`{sort}_{page}`) or both (`{sort}`); we default
+ * `all` to false and `page` to 0 in those cases. */
 function decodeLeaderboardTail(
   rest: string,
-): Decoded<{ sort: string; page: number }> {
-  const lastUnderscore = rest.lastIndexOf("_");
-  if (lastUnderscore < 0) {
-    return rest ? { sort: rest, page: 0 } : null;
+): Decoded<{ sort: string; all: boolean; page: number }> {
+  if (!rest) return null;
+  const parts = rest.split("_");
+  const sort = parts[0];
+  if (!sort) return null;
+  const tail = parts.slice(1);
+  if (tail.length === 0) return { sort, all: false, page: 0 };
+  if (tail.length === 1) {
+    const page = Number(tail[0]);
+    return { sort, all: false, page: Number.isFinite(page) ? page : 0 };
   }
-  const maybePage = Number(rest.slice(lastUnderscore + 1));
-  if (!Number.isFinite(maybePage)) {
-    // No trailing page (legacy) — treat the whole thing as the sort.
-    return { sort: rest, page: 0 };
-  }
-  return { sort: rest.slice(0, lastUnderscore), page: maybePage };
+  // tail.length >= 2: [all, page]
+  const page = Number(tail[1]);
+  return { sort, all: tail[0] === "1", page: Number.isFinite(page) ? page : 0 };
 }
 
 export const leaderboardPage = {
   prefix: "leaderboard_page_",
-  encode: (sort: string, page: number) => `leaderboard_page_${sort}_${page}`,
+  encode: (sort: string, all: boolean, page: number) =>
+    `leaderboard_page_${sort}_${all ? "1" : "0"}_${page}`,
   decode: (id: string) =>
     decodeLeaderboardTail(id.slice("leaderboard_page_".length)),
 };
 
 export const leaderboardRefresh = {
   prefix: "leaderboard_refresh_",
-  encode: (sort: string, page: number) => `leaderboard_refresh_${sort}_${page}`,
+  encode: (sort: string, all: boolean, page: number) =>
+    `leaderboard_refresh_${sort}_${all ? "1" : "0"}_${page}`,
   decode: (id: string) =>
     decodeLeaderboardTail(id.slice("leaderboard_refresh_".length)),
 };

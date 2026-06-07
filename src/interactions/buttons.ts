@@ -825,6 +825,7 @@ async function handleLeaderboardRefresh(interaction: ButtonInteraction) {
   const view = await buildLeaderboardView(
     guildId,
     decoded.sort as import("../commands/leaderboard.js").LeaderboardSort,
+    decoded.all,
     decoded.page,
   );
   await interaction.editReply(view);
@@ -839,6 +840,7 @@ async function handleLeaderboardPage(interaction: ButtonInteraction) {
   const view = await buildLeaderboardView(
     guildId,
     decoded.sort as import("../commands/leaderboard.js").LeaderboardSort,
+    decoded.all,
     decoded.page,
   );
   await interaction.editReply(view);

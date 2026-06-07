@@ -20,12 +20,17 @@ import type { Command } from "./types.js";
 
 export const LEADERBOARD_PAGE_SIZE = 10;
 
+/** A member counts as "active" if their last interaction (most recent bet or
+ * daily claim) was within this window. */
+const ACTIVE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
 export type LeaderboardSort =
   | "net"
   | "portfolio"
   | "points"
   | "skill"
-  | "average";
+  | "average"
+  | "winrate";
 
 export const leaderboardCommand: Command = {
   data: new SlashCommandBuilder()
@@ -45,6 +50,7 @@ export const leaderboardCommand: Command = {
           { name: "Points (balance)", value: "points" },
           { name: "Skill (accumulated %)", value: "skill" },
           { name: "Average (per bet)", value: "average" },
+          { name: "Win rate (% of settled bets won)", value: "winrate" },
         ),
     ),
 
@@ -57,7 +63,7 @@ export const leaderboardCommand: Command = {
     const sort = (interaction.options.getString("sort") ||
       "net") as LeaderboardSort;
 
-    const view = await buildLeaderboardView(guildId, sort, 0);
+    const view = await buildLeaderboardView(guildId, sort, false, 0);
     await interaction.editReply(view);
   },
 };
@@ -65,6 +71,7 @@ export const leaderboardCommand: Command = {
 export async function buildLeaderboardView(
   guildId: string,
   sort: LeaderboardSort,
+  showAll = false,
   page = 0,
 ): Promise<BaseMessageOptions> {
   const members = await db.query.guildMembers.findMany({
@@ -74,23 +81,53 @@ export async function buildLeaderboardView(
 
   const refreshButton = (refreshPage: number) =>
     new ButtonBuilder()
-      .setCustomId(leaderboardRefresh.encode(sort, refreshPage))
+      .setCustomId(leaderboardRefresh.encode(sort, showAll, refreshPage))
       .setLabel("Refresh")
       .setStyle(ButtonStyle.Secondary);
 
-  const refreshRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  // Toggles between the active-only view and the all-players view, resetting
+  // back to the first page.
+  const toggleButton = () =>
+    new ButtonBuilder()
+      .setCustomId(leaderboardRefresh.encode(sort, !showAll, 0))
+      .setLabel(showAll ? "Show active only" : "Show all players")
+      .setStyle(ButtonStyle.Secondary);
+
+  const controlRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     refreshButton(0),
+    toggleButton(),
   );
 
   if (members.length === 0) {
     return {
       content: "No one has placed any bets in this server yet!",
       embeds: [],
-      components: [refreshRow],
+      components: [controlRow],
     };
   }
 
   type MemberWithUser = (typeof members)[number];
+
+  // Restrict to recently-active members unless the all-players view is on.
+  // lastSettlementsSeenAt is refreshed on every slash command, so it doubles
+  // as a "last interacted" marker.
+  let visibleMembers = members;
+  if (!showAll) {
+    const cutoff = Date.now() - ACTIVE_WINDOW_MS;
+    visibleMembers = members.filter(
+      (m) =>
+        m.lastSettlementsSeenAt && m.lastSettlementsSeenAt.getTime() >= cutoff,
+    );
+
+    if (visibleMembers.length === 0) {
+      return {
+        content:
+          "No active players in the last 2 weeks. Use **Show all players** to see everyone.",
+        embeds: [],
+        components: [controlRow],
+      };
+    }
+  }
 
   // Realized Net P&L per user
   const netByUserId = new Map<number, number>();
@@ -146,7 +183,7 @@ export async function buildLeaderboardView(
 
   switch (sort) {
     case "net": {
-      sorted = [...members]
+      sorted = [...visibleMembers]
         .filter(
           (m) =>
             netByUserId.has(m.userId) || unrealizedPnLByUserId.has(m.userId),
@@ -166,7 +203,7 @@ export async function buildLeaderboardView(
     case "portfolio": {
       const totalFor = (m: MemberWithUser) =>
         m.pointsBalance + (openValueByUserId.get(m.userId) ?? 0);
-      sorted = [...members].sort((a, b) => totalFor(b) - totalFor(a));
+      sorted = [...visibleMembers].sort((a, b) => totalFor(b) - totalFor(a));
       title = "Leaderboard — Portfolio Value";
       formatValue = (m) => {
         const open = openValueByUserId.get(m.userId) ?? 0;
@@ -177,7 +214,9 @@ export async function buildLeaderboardView(
     }
 
     case "skill":
-      sorted = [...members].sort((a, b) => totalPctFor(b) - totalPctFor(a));
+      sorted = [...visibleMembers].sort(
+        (a, b) => totalPctFor(b) - totalPctFor(a),
+      );
       title = "Leaderboard — Prediction Skill";
       formatValue = (m) => {
         const total = totalPctFor(m);
@@ -189,7 +228,7 @@ export async function buildLeaderboardView(
       break;
 
     case "average":
-      sorted = [...members]
+      sorted = [...visibleMembers]
         .filter((m) => totalBetsFor(m) > 0)
         .sort((a, b) => {
           const avgA = totalPctFor(a) / totalBetsFor(a);
@@ -211,18 +250,35 @@ export async function buildLeaderboardView(
       };
       break;
 
+    case "winrate": {
+      const winRateFor = (m: MemberWithUser) =>
+        m.totalBetsSettled > 0 ? m.totalWon / m.totalBetsSettled : 0;
+      sorted = [...visibleMembers]
+        .filter((m) => m.totalBetsSettled > 0)
+        .sort((a, b) => winRateFor(b) - winRateFor(a));
+      title = "Leaderboard — Win Rate";
+      formatValue = (m) =>
+        `${(winRateFor(m) * 100).toFixed(1)}% (${m.totalWon}/${m.totalBetsSettled})`;
+      break;
+    }
+
     default:
-      sorted = [...members].sort((a, b) => b.pointsBalance - a.pointsBalance);
+      sorted = [...visibleMembers].sort(
+        (a, b) => b.pointsBalance - a.pointsBalance,
+      );
       title = "Leaderboard — Points";
       formatValue = (m) => `${m.pointsBalance.toLocaleString()} pts`;
       break;
   }
 
+  // Keep the active-view title untouched; flag the all-players view.
+  if (showAll) title += " — All Players";
+
   if (sorted.length === 0) {
     return {
       content: "No qualifying users for this sort mode.",
       embeds: [],
-      components: [refreshRow],
+      components: [controlRow],
     };
   }
 
@@ -241,7 +297,9 @@ export async function buildLeaderboardView(
   });
 
   const footerParts = [
-    `${sorted.length} player${sorted.length !== 1 ? "s" : ""} in this server`,
+    `${sorted.length} ${showAll ? "" : "active "}player${
+      sorted.length !== 1 ? "s" : ""
+    } in this server`,
   ];
   if (totalPages > 1) footerParts.push(`Page ${safePage + 1}/${totalPages}`);
 
@@ -256,11 +314,11 @@ export async function buildLeaderboardView(
   if (totalPages > 1) {
     nav.addComponents(
       ...buildPrevNext(safePage, totalPages, (p) =>
-        leaderboardPage.encode(sort, p),
+        leaderboardPage.encode(sort, showAll, p),
       ),
     );
   }
-  nav.addComponents(refreshButton(safePage));
+  nav.addComponents(refreshButton(safePage), toggleButton());
 
   return { embeds: [embed], components: [nav] };
 }
