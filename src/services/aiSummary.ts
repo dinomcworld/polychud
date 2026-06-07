@@ -85,7 +85,7 @@ async function fetchSummaryFromOpenRouter(
   const userContent = `Resolution outcomes:\n- YES side: "${yesLabel}"\n- NO side: "${noLabel}"\n\nQuestion: ${market.question}\n\nDescription:\n${market.description}`;
 
   for (const model of models) {
-    const result = await tryModel(
+    const result = await tryModelWithRetry(
       apiKey,
       model,
       systemPrompt,
@@ -110,6 +110,51 @@ type ModelResult =
   | { kind: "rate_limited" }
   | { kind: "truncated" }
   | { kind: "error" };
+
+// Attempts beyond the first, per model, for transient failures.
+const MAX_RETRIES = 3;
+const BASE_BACKOFF_MS = 500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// rate_limited (429) and error (HTTP non-2xx, network, or timeout) are
+// transient and worth retrying. empty/truncated are deterministic for a
+// given prompt, so retrying them just burns quota.
+function isRetryable(result: ModelResult): boolean {
+  return result.kind === "rate_limited" || result.kind === "error";
+}
+
+async function tryModelWithRetry(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  userContent: string,
+  conditionId: string,
+): Promise<ModelResult> {
+  let result: ModelResult = { kind: "error" };
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      // Exponential backoff with full jitter: base * 2^(attempt-1) + rand.
+      const delay =
+        BASE_BACKOFF_MS * 2 ** (attempt - 1) + Math.random() * BASE_BACKOFF_MS;
+      logger.debug(
+        `OpenRouter retry ${attempt}/${MAX_RETRIES} model=${model} for ${conditionId} after ${Math.round(delay)}ms (${result.kind})`,
+      );
+      await sleep(delay);
+    }
+    result = await tryModel(
+      apiKey,
+      model,
+      systemPrompt,
+      userContent,
+      conditionId,
+    );
+    if (!isRetryable(result)) return result;
+  }
+  return result;
+}
 
 async function tryModel(
   apiKey: string,
