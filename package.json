@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
-    "@types/node": "^25.9.1",
+    "@types/node": "^26.0.0",
     "drizzle-kit": "^0.31.10",
     "simple-git-hooks": "^2.13.1",
     "tsx": "^4.22.3",
