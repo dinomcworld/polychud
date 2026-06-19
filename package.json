@@ -19,7 +19,7 @@
     "pre-commit": "bunx biome check --staged --no-errors-on-unmatched --write && git update-index --again"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.15",
+    "@biomejs/biome": "^2.5.0",
     "@types/node": "^25.9.1",
     "drizzle-kit": "^0.31.10",
     "simple-git-hooks": "^2.13.1",
