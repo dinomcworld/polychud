@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "bun build src/index.ts src/deploy-commands.ts --target=bun --outdir=dist --minify --sourcemap=linked --production",
+    "build": "bun build src/index.ts src/deploy-commands.ts src/scripts/cancelMarket.ts --target=bun --outdir=dist --minify --sourcemap=linked --production",
     "start": "bun dist/index.js",
     "deploy-commands": "bun src/deploy-commands.ts",
+    "cancel-market": "bun src/scripts/cancelMarket.ts",
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit",
     "lint": "biome check",
