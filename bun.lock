@@ -6,19 +6,19 @@
       "name": "polychud",
       "dependencies": {
         "@resvg/resvg-js": "^2.6.2",
-        "discord.js": "^14.26.3",
+        "discord.js": "^14.26.4",
         "dotenv": "^17.4.2",
         "drizzle-orm": "^0.45.2",
-        "node-cron": "^4.2.1",
+        "node-cron": "^4.4.1",
         "postgres": "^3.4.9",
-        "zod": "^4.3.6",
+        "zod": "^4.4.3",
       },
       "devDependencies": {
-        "@biomejs/biome": "^2.4.13",
-        "@types/node": "^25.6.0",
+        "@biomejs/biome": "^2.4.15",
+        "@types/node": "^25.9.1",
         "drizzle-kit": "^0.31.10",
         "simple-git-hooks": "^2.13.1",
-        "tsx": "^4.21.0",
+        "tsx": "^4.22.3",
         "typescript": "^6.0.3",
       },
     },
@@ -178,7 +178,7 @@
 
     "magic-bytes.js": ["magic-bytes.js@1.13.0", "", {}, "sha512-afO2mnxW7GDTXMm5/AoN1WuOcdoKhtgXjIvHmobqTD1grNplhGdv3PFOyjCVmrnOZBIT/gD/koDKpYG+0mvHcg=="],
 
-    "node-cron": ["node-cron@4.2.1", "", {}, "sha512-lgimEHPE/QDgFlywTd8yTR61ptugX3Qer29efeyWw2rv259HtGBNn1vZVmp8lB9uo9wC0t/AT4iGqXxia+CJFg=="],
+    "node-cron": ["node-cron@4.4.1", "", {}, "sha512-1e4Gku1qeKx1ywNnMoA0o5hiZ8iA4klH84TIszTHZAME68xVIjLkiBo5KrtowbcOJn8MQqJG/yWHjC/dFdMWyQ=="],
 
     "postgres": ["postgres@3.4.9", "", {}, "sha512-GD3qdB0x1z9xgFI6cdRD6xu2Sp2WCOEoe3mtnyB5Ee0XrrL5Pe+e4CCnJrRMnL1zYtRDZmQQVbvOttLnKDLnaw=="],
 
