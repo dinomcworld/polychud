@@ -2,8 +2,8 @@ import { and, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import * as cron from "node-cron";
 import { config } from "../config.js";
 import { db } from "../db/index.js";
-import { bets, guildMembers, markets } from "../db/schema.js";
-import { resolveMarketBets } from "../services/betting.js";
+import { bets, markets } from "../db/schema.js";
+import { cancelMarket, resolveMarketBets } from "../services/betting.js";
 import { getMarketByConditionId } from "../services/polymarket.js";
 import { logger } from "../utils/logger.js";
 
@@ -137,59 +137,19 @@ async function runResolutionCheck() {
 }
 
 /**
- * Handle a market that was cancelled/archived without resolution.
- * Refunds all pending bets at original stake.
+ * Handle a market that was cancelled/archived on Polymarket without resolution.
+ * Delegates to `cancelMarket`, which refunds stakes and (for any already-settled
+ * bets) reverses the stat counters and claws back payouts.
  */
 async function handleCancelledMarket(marketId: number) {
-  const pendingBets = await db.query.bets.findMany({
-    where: and(eq(bets.marketId, marketId), eq(bets.status, "pending")),
-  });
-
-  if (pendingBets.length === 0) return;
-
-  logger.info(
-    `Market ${marketId} cancelled/archived — refunding ${pendingBets.length} bets`,
+  const result = await cancelMarket(
+    marketId,
+    "Cancelled or archived on Polymarket",
   );
 
-  const now = new Date();
-
-  for (const bet of pendingBets) {
-    await db.transaction(async (tx) => {
-      // Refund the bet
-      await tx
-        .update(bets)
-        .set({
-          status: "cancelled",
-          actualPayout: bet.amount,
-          resolvedAt: now,
-        })
-        .where(eq(bets.id, bet.id));
-
-      // Give points back to the guild member for this user+guild
-      await tx
-        .update(guildMembers)
-        .set({
-          pointsBalance: sql`${guildMembers.pointsBalance} + ${bet.amount}`,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(guildMembers.userId, bet.userId),
-            eq(guildMembers.guildId, bet.guildId),
-          ),
-        );
-    });
+  if (result.reverted > 0) {
+    logger.info(
+      `Market ${marketId} cancelled/archived — refunded ${result.reverted} bets (${result.refundedPts} pts) across ${result.users} users`,
+    );
   }
-
-  // Mark market cancelled once after all refunds succeed. If the loop above
-  // crashed midway, the market keeps its prior status so the next resolver
-  // cycle re-picks the remaining pending bets.
-  await db
-    .update(markets)
-    .set({ status: "cancelled", updatedAt: now })
-    .where(eq(markets.id, marketId));
-
-  logger.info(
-    `Refunded ${pendingBets.length} bets for cancelled market ${marketId}`,
-  );
 }

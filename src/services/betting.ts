@@ -1,4 +1,4 @@
-import { and, eq, gt, ne, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, ne, or, sql } from "drizzle-orm";
 import { config } from "../config.js";
 import { db } from "../db/index.js";
 import { bets, guildMembers, markets, users } from "../db/schema.js";
@@ -214,6 +214,7 @@ export interface NewSettlement {
   eventSlug: string | null;
   yesLabel: string | null;
   noLabel: string | null;
+  cancellationReason: string | null;
 }
 
 /**
@@ -287,6 +288,7 @@ export async function consumeNewSettlements(
     eventSlug: b.market?.event?.slug ?? null,
     yesLabel: b.market?.yesLabel ?? null,
     noLabel: b.market?.noLabel ?? null,
+    cancellationReason: b.market?.cancellationReason ?? null,
   }));
 
   await db
@@ -584,4 +586,110 @@ export async function resolveMarketBets(
     .where(eq(markets.id, marketId));
 
   return settledCount;
+}
+
+// ─── Cancellation ────────────────────────────────────────────────────────────
+
+export interface CancelMarketResult {
+  reverted: number;
+  refundedPts: number;
+  users: number;
+}
+
+/**
+ * Cancel a market and undo it for every player: refund stakes, claw back any
+ * payouts already credited, and reverse the stat counters that
+ * `resolveMarketBets` bumped. Use this when Polymarket resolved a market to the
+ * wrong outcome (or for any manual void) — it works whether the market's bets
+ * are still `pending` or were already settled to `won`/`lost`.
+ *
+ * Each affected bet is the exact inverse of its resolution plus a stake refund,
+ * so a player ends up as if the bet never happened:
+ *   pointsBalance += amount - creditedPayout
+ *     pending → +amount          (pure refund, nothing was credited)
+ *     lost    → +amount          (refund; payout was 0)
+ *     won     → +amount - payout  (refund stake AND claw back the winnings)
+ *
+ * `closed_early` bets are intentionally left untouched — a voluntary cash-out at
+ * an earlier price is independent of the (wrong) final resolution.
+ *
+ * Bets are stamped with a fresh `resolvedAt` so `consumeNewSettlements` re-shows
+ * them as REFUNDED even to players who already saw the wrong win/loss card.
+ */
+export async function cancelMarket(
+  marketId: number,
+  reason: string,
+): Promise<CancelMarketResult> {
+  const affected = await db.query.bets.findMany({
+    where: and(
+      eq(bets.marketId, marketId),
+      inArray(bets.status, ["pending", "won", "lost"]),
+    ),
+  });
+
+  const now = new Date();
+  const userIds = new Set<number>();
+  let refundedPts = 0;
+
+  for (const bet of affected) {
+    const wasWon = bet.status === "won";
+    const wasLost = bet.status === "lost";
+    const wasSettled = wasWon || wasLost;
+    const creditedPayout = bet.actualPayout ?? 0;
+    const balanceDelta = bet.amount - creditedPayout;
+
+    // Inverse of the priceDelta resolveMarketBets applied: win exits at 1.0,
+    // loss at 0.0. Only meaningful for already-settled bets.
+    const exitPrice = wasWon ? 1.0 : 0.0;
+    const priceDelta = exitPrice - parseFloat(bet.oddsAtBet);
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(bets)
+        .set({
+          status: "cancelled",
+          actualPayout: bet.amount,
+          resolvedAt: now,
+        })
+        .where(eq(bets.id, bet.id));
+
+      const memberUpdates: Record<string, unknown> = {
+        pointsBalance: sql`${guildMembers.pointsBalance} + ${balanceDelta}`,
+        updatedAt: now,
+      };
+
+      if (wasSettled) {
+        memberUpdates.accumulatedPct = sql`${guildMembers.accumulatedPct} - ${priceDelta}`;
+        memberUpdates.totalBetsSettled = sql`${guildMembers.totalBetsSettled} - 1`;
+        if (wasWon) {
+          memberUpdates.totalWon = sql`${guildMembers.totalWon} - 1`;
+        } else {
+          memberUpdates.totalLost = sql`${guildMembers.totalLost} - 1`;
+        }
+      }
+
+      await tx
+        .update(guildMembers)
+        .set(memberUpdates)
+        .where(
+          and(
+            eq(guildMembers.userId, bet.userId),
+            eq(guildMembers.guildId, bet.guildId),
+          ),
+        );
+    });
+
+    userIds.add(bet.userId);
+    refundedPts += bet.amount;
+  }
+
+  // Mark the market cancelled once all bets are reverted. If the loop above
+  // crashed midway the market keeps its prior status, so a re-run safely
+  // resumes (the status filter skips already-cancelled bets).
+  await db
+    .update(markets)
+    .set({ status: "cancelled", cancellationReason: reason, updatedAt: now })
+    .where(eq(markets.id, marketId));
+
+  return { reverted: affected.length, refundedPts, users: userIds.size };
 }

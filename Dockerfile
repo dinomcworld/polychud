@@ -7,7 +7,7 @@ RUN SKIP_INSTALL_SIMPLE_GIT_HOOKS=1 bun ci
 FROM deps AS builder
 COPY tsconfig.json ./
 COPY src/ ./src/
-RUN bun build src/index.ts src/deploy-commands.ts --target=bun --outdir=dist --minify --sourcemap=linked --production
+RUN bun build src/index.ts src/deploy-commands.ts src/scripts/cancelMarket.ts --target=bun --outdir=dist --minify --sourcemap=linked --production
 
 # ─── Stage 3: Production image ────────────────────────────────────────────────
 FROM oven/bun:1-alpine AS production

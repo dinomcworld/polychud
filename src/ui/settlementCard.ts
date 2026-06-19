@@ -38,10 +38,16 @@ function renderEntry(s: NewSettlement): string {
     : marketTitle;
   const labels = resolveOutcomeLabels(s.yesLabel, s.noLabel);
   const sideLabel = outcomeLabel(s.outcome, labels);
-  return [
+  const lines = [
     `**${marketLine}**`,
     `#${s.betId} — ${sideLabel} · ${statusLabel(s.status)} · Stake **${s.amount.toLocaleString()}** → **${s.actualPayout.toLocaleString()}** pts (**${pnlStr}**)`,
-  ].join("\n");
+  ];
+  if (s.status === "cancelled" && s.cancellationReason) {
+    lines.push(
+      `⚠️ Refunded: ${escapeMarkdown(truncate(s.cancellationReason, MAX_QUESTION))}`,
+    );
+  }
+  return lines.join("\n");
 }
 
 export function buildSettlementsEmbed(

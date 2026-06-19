@@ -58,6 +58,7 @@ export const markets = pgTable(
     }).default("0.5000"),
     endDate: timestamp("end_date", { withTimezone: true }),
     status: varchar("status", { length: 20 }).notNull().default("active"),
+    cancellationReason: text("cancellation_reason"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
