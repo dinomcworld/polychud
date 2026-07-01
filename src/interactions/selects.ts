@@ -10,6 +10,7 @@ import {
   buildEventSelectMenu,
 } from "../ui/eventCard.js";
 import { renderMarketCardWithSummary } from "../ui/marketCardRender.js";
+import { actorContext, marketContext } from "../utils/logContext.js";
 import { logger } from "../utils/logger.js";
 import { showCloseBetPreview } from "./buttons.js";
 
@@ -18,8 +19,8 @@ export async function handleSelectMenu(
 ) {
   const id = interaction.customId;
 
-  logger.debug(
-    `select: user=${interaction.user.id} guild=${interaction.guildId ?? "dm"} customId=${id} values=${JSON.stringify(interaction.values)}`,
+  logger.info(
+    `select: ${actorContext(interaction)} customId=${id} values=${JSON.stringify(interaction.values)}${marketContext(id, ...interaction.values)}`,
   );
 
   if (id === "market_select") {

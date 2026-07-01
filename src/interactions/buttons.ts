@@ -72,6 +72,7 @@ import {
   takeMarketMessage,
 } from "../utils/betContext.js";
 import { requireGuildId } from "../utils/guards.js";
+import { actorContext, marketContext } from "../utils/logContext.js";
 import { logger } from "../utils/logger.js";
 import {
   betModal,
@@ -141,8 +142,8 @@ const SORTED_ROUTES: ReadonlyArray<[string, ButtonHandler]> = [
 export async function handleButton(interaction: ButtonInteraction) {
   const id = interaction.customId;
 
-  logger.debug(
-    `button: user=${interaction.user.id} guild=${interaction.guildId ?? "dm"} customId=${id}`,
+  logger.info(
+    `button: ${actorContext(interaction)} customId=${id}${marketContext(id)}`,
   );
 
   const exact = EXACT_ROUTES[id];
