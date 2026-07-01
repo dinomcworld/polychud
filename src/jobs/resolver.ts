@@ -11,7 +11,7 @@ let task: ReturnType<typeof cron.schedule> | null = null;
 let running = false;
 
 export function startResolver() {
-  logger.info(
+  logger.debug(
     `Starting resolution checker (cron: ${config.RESOLUTION_CHECK_CRON})`,
   );
 
@@ -24,7 +24,7 @@ export function stopResolver() {
   if (task) {
     task.stop();
     task = null;
-    logger.info("Resolution checker stopped");
+    logger.debug("Resolution checker stopped");
   }
 }
 
@@ -35,7 +35,7 @@ async function runResolutionCheck() {
   }
 
   running = true;
-  logger.info("Running resolution check...");
+  logger.debug("Running resolution check...");
 
   try {
     // Find markets that have pending bets AND are near/past end date
@@ -73,7 +73,7 @@ async function runResolutionCheck() {
       ),
     });
 
-    logger.info(
+    logger.debug(
       `Checking ${candidateMarkets.length} markets for resolution...`,
     );
 

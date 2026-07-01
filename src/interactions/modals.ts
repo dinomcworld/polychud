@@ -23,14 +23,15 @@ import { COLORS } from "../ui/colors.js";
 import { outcomeLabel, resolveOutcomeLabels } from "../ui/outcomeLabels.js";
 import { truncate } from "../ui/text.js";
 import { requireGuildId } from "../utils/guards.js";
+import { actorContext, marketContext } from "../utils/logContext.js";
 import { logger } from "../utils/logger.js";
 import { betModal, confirmBet } from "./customIds.js";
 
 export async function handleModal(interaction: ModalSubmitInteraction) {
   const id = interaction.customId;
 
-  logger.debug(
-    `modal: user=${interaction.user.id} guild=${interaction.guildId ?? "dm"} customId=${id}`,
+  logger.info(
+    `modal: ${actorContext(interaction)} customId=${id}${marketContext(id)}`,
   );
 
   if (id.startsWith(betModal.prefix)) {

@@ -29,6 +29,7 @@ import {
   getMarketByConditionId,
 } from "./services/polymarket.js";
 import { buildSettlementsEmbed } from "./ui/settlementCard.js";
+import { actorContext } from "./utils/logContext.js";
 import { logger } from "./utils/logger.js";
 
 // Build command collection
@@ -74,8 +75,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
       const sub = interaction.options.getSubcommand(false);
-      logger.debug(
-        `command: user=${interaction.user.id} guild=${interaction.guildId ?? "dm"} /${interaction.commandName}${sub ? ` ${sub}` : ""}`,
+      logger.info(
+        `command: ${actorContext(interaction)} /${interaction.commandName}${sub ? ` ${sub}` : ""}`,
       );
       await command.execute(interaction);
       await maybeNotifySettlements(interaction);

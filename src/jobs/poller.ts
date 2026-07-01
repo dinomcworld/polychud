@@ -10,7 +10,7 @@ let stopped = false;
 
 export async function startPoller() {
   stopped = false;
-  logger.info("Starting background poller");
+  logger.debug("Starting background poller");
   await schedulePollCycle();
 }
 
@@ -20,7 +20,7 @@ export function stopPoller() {
     clearTimeout(pollTimer);
     pollTimer = null;
   }
-  logger.info("Background poller stopped");
+  logger.debug("Background poller stopped");
 }
 
 async function schedulePollCycle() {
@@ -74,7 +74,7 @@ async function runPollCycle(): Promise<number> {
   // Spread batches evenly across the cycle
   const interval = Math.floor(config.POLL_CYCLE_MS / batches.length);
 
-  logger.info(
+  logger.debug(
     `Polling ${pollable.length} markets in ${batches.length} batch(es) of up to ${batchSize}, one every ${Math.round(interval / 1000)}s (${Math.round(config.POLL_CYCLE_MS / 60000)}min cycle)`,
   );
 
