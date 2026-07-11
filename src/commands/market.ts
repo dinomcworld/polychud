@@ -321,14 +321,17 @@ async function handleCategory(
 
 /**
  * Parse input: accepts Polymarket URLs or numeric DB IDs.
- * URLs like: polymarket.com/event/some-slug or https://polymarket.com/event/some-slug
+ * Handles both the plain `/event/<slug>` form and the deeper category paths
+ * used for sports, e.g. `polymarket.com/sports/world-cup/fifwc-nor-eng-2026-07-11`.
+ * In every case the event slug is the final path segment.
  */
 function parseViewInput(
   input: string,
 ): { type: "slug"; slug: string } | { type: "id"; id: number } | null {
-  // Try to extract slug from URL
+  // Try to extract the slug from any polymarket.com URL. The slug is always the
+  // last path segment, regardless of the preceding path (/event/, /sports/…/, …).
   const urlMatch = input.match(
-    /(?:https?:\/\/)?(?:www\.)?polymarket\.com\/event\/([a-z0-9-]+)/i,
+    /(?:https?:\/\/)?(?:www\.)?polymarket\.com\/(?:[a-z0-9-]+\/)*([a-z0-9-]+)/i,
   );
   if (urlMatch?.[1]) {
     return { type: "slug", slug: urlMatch[1] };

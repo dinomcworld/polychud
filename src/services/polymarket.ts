@@ -162,6 +162,21 @@ async function fetchWithRetry(
 // ─── Parsers ──────────────────────────────────────────────────────────────────
 // The Gamma API is consistently camelCase across all endpoints.
 
+/**
+ * Normalize an image/icon URL into a well-formed one. Polymarket's S3 asset
+ * URLs sometimes contain raw spaces (e.g. ".../soccer ball-….png"), which
+ * Discord rejects with URL_TYPE_INVALID_URL when used as an embed thumbnail.
+ * The WHATWG URL parser percent-encodes those; anything unparseable → null.
+ */
+function sanitizeImageUrl(url: unknown): string | null {
+  if (typeof url !== "string" || url === "") return null;
+  try {
+    return new URL(url).href;
+  } catch {
+    return null;
+  }
+}
+
 function parseMarket(raw: RawApiObject): GammaMarket {
   return {
     id: String(raw.id),
@@ -174,8 +189,8 @@ function parseMarket(raw: RawApiObject): GammaMarket {
     active: raw.active ?? false,
     closed: raw.closed ?? false,
     endDate: raw.endDate ?? null,
-    image: raw.image ?? null,
-    icon: raw.icon ?? null,
+    image: sanitizeImageUrl(raw.image),
+    icon: sanitizeImageUrl(raw.icon),
     description: raw.description ?? "",
     volume: parseFloat(raw.volume ?? "0"),
     volume24hr: raw.volume24hr ?? 0,
@@ -201,8 +216,8 @@ function parseEvent(raw: RawApiObject): GammaEvent {
     slug: raw.slug ?? "",
     title: raw.title ?? "",
     description: raw.description ?? "",
-    image: raw.image ?? null,
-    icon: raw.icon ?? null,
+    image: sanitizeImageUrl(raw.image),
+    icon: sanitizeImageUrl(raw.icon),
     active: raw.active ?? false,
     closed: raw.closed ?? false,
     endDate: raw.endDate ?? null,
