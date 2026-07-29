@@ -18,7 +18,7 @@ import type {
 import type { getUserStats } from "../services/users.js";
 import { signedColor } from "./colors.js";
 import { outcomeLabel, resolveOutcomeLabels } from "./outcomeLabels.js";
-import { buildPrevNext, paginate } from "./paginate.js";
+import { buildPrevNext } from "./paginate.js";
 import { truncate } from "./text.js";
 
 type ActiveBet = Awaited<ReturnType<typeof getUserActiveBets>>[number];
@@ -28,6 +28,53 @@ type UserStats = Awaited<ReturnType<typeof getUserStats>>;
 export type PortfolioBetsMode = "active" | "settled";
 
 export const PORTFOLIO_BETS_PAGE_SIZE = 5;
+
+const EMBED_FIELD_VALUE_MAX_LENGTH = 1024;
+const BET_SEPARATOR = "\n\n";
+
+function fitPortfolioBetEntry(
+  question: string,
+  titleLine: string,
+  details: string,
+): string {
+  const linkedEntry = `**${titleLine}**\n${details}`;
+  if (linkedEntry.length <= EMBED_FIELD_VALUE_MAX_LENGTH) return linkedEntry;
+
+  const plainTitle = `**${question}**\n`;
+  return `${plainTitle}${truncate(
+    details,
+    EMBED_FIELD_VALUE_MAX_LENGTH - plainTitle.length,
+  )}`;
+}
+
+function buildPortfolioBetPages(entries: string[]): string[][] {
+  const pages: string[][] = [];
+  let currentPage: string[] = [];
+  let currentLength = 0;
+
+  for (const entry of entries) {
+    const separatorLength = currentPage.length > 0 ? BET_SEPARATOR.length : 0;
+    const exceedsPage =
+      currentPage.length >= PORTFOLIO_BETS_PAGE_SIZE ||
+      (currentPage.length > 0 &&
+        currentLength + separatorLength + entry.length >
+          EMBED_FIELD_VALUE_MAX_LENGTH);
+
+    if (exceedsPage) {
+      pages.push(currentPage);
+      currentPage = [];
+      currentLength = 0;
+    }
+
+    const nextSeparatorLength =
+      currentPage.length > 0 ? BET_SEPARATOR.length : 0;
+    currentPage.push(entry);
+    currentLength += nextSeparatorLength + entry.length;
+  }
+
+  if (currentPage.length > 0) pages.push(currentPage);
+  return pages;
+}
 
 export function buildPortfolioView(
   target: User,
@@ -122,54 +169,49 @@ export function buildPortfolioView(
 
   betsWithPnL.sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl));
 
-  const {
-    slice: pageBets,
-    page: safePage,
-    totalPages,
-  } = paginate(betsWithPnL, PORTFOLIO_BETS_PAGE_SIZE, page);
+  const betLines = betsWithPnL.map(({ bet, pnl, entryPct, currentPct }) => {
+    const question = bet.market
+      ? truncate(bet.market.question, 70)
+      : `Market #${bet.marketId}`;
 
-  if (pageBets.length > 0) {
-    const betLines = pageBets.map(({ bet, pnl, entryPct, currentPct }) => {
-      const question = bet.market
-        ? truncate(bet.market.question, 70)
-        : `Market #${bet.marketId}`;
+    const eventSlug = bet.market?.event?.slug ?? null;
+    const titleLine = eventSlug
+      ? `[${question}](https://polymarket.com/event/${eventSlug})`
+      : question;
 
-      const eventSlug = bet.market?.event?.slug ?? null;
-      const titleLine = eventSlug
-        ? `[${question}](https://polymarket.com/event/${eventSlug})`
-        : question;
+    const pnlStr = pnl >= 0 ? `+${pnl}` : `${pnl}`;
+    const oddsStr =
+      currentPct !== null ? `${entryPct}% → ${currentPct}%` : `${entryPct}%`;
+    const labels = resolveOutcomeLabels(
+      bet.market?.yesLabel,
+      bet.market?.noLabel,
+    );
+    const sideLabel = outcomeLabel(bet.outcome as "yes" | "no", labels);
 
-      const pnlStr = pnl >= 0 ? `+${pnl}` : `${pnl}`;
-      const oddsStr =
-        currentPct !== null ? `${entryPct}% → ${currentPct}%` : `${entryPct}%`;
-      const labels = resolveOutcomeLabels(
-        bet.market?.yesLabel,
-        bet.market?.noLabel,
-      );
-      const sideLabel = outcomeLabel(bet.outcome as "yes" | "no", labels);
+    if (mode === "active") {
+      const details = `${sideLabel} · **${bet.amount.toLocaleString()}** pts · ${oddsStr} · P&L ${pnlStr} pts`;
+      return fitPortfolioBetEntry(question, titleLine, details);
+    }
 
-      if (mode === "active") {
-        return [
-          `**${titleLine}**`,
-          `${sideLabel} · **${bet.amount.toLocaleString()}** pts · ${oddsStr} · P&L ${pnlStr} pts`,
-        ].join("\n");
-      }
+    const settled = bet as SettledBet;
+    const statusLabel =
+      settled.status === "won"
+        ? "WON"
+        : settled.status === "lost"
+          ? "LOST"
+          : settled.status === "closed_early"
+            ? "CLOSED"
+            : settled.status.toUpperCase();
+    const details = `${sideLabel} · ${statusLabel} · **${settled.amount.toLocaleString()}** pts · ${oddsStr} · P&L ${pnlStr} pts`;
+    return fitPortfolioBetEntry(question, titleLine, details);
+  });
 
-      const settled = bet as SettledBet;
-      const statusLabel =
-        settled.status === "won"
-          ? "WON"
-          : settled.status === "lost"
-            ? "LOST"
-            : settled.status === "closed_early"
-              ? "CLOSED"
-              : settled.status.toUpperCase();
-      return [
-        `**${titleLine}**`,
-        `${sideLabel} · ${statusLabel} · **${settled.amount.toLocaleString()}** pts · ${oddsStr} · P&L ${pnlStr} pts`,
-      ].join("\n");
-    });
+  const betPages = buildPortfolioBetPages(betLines);
+  const totalPages = Math.max(1, betPages.length);
+  const safePage = Math.min(Math.max(page, 0), totalPages - 1);
+  const pageBetLines = betPages[safePage] ?? [];
 
+  if (pageBetLines.length > 0) {
     const baseHeader = mode === "active" ? "Active Bets" : "Settled Bets";
     const header =
       totalPages > 1
@@ -178,7 +220,7 @@ export function buildPortfolioView(
 
     embed.addFields({
       name: header,
-      value: betLines.join("\n\n"),
+      value: pageBetLines.join(BET_SEPARATOR),
     });
   } else {
     embed.addFields({
