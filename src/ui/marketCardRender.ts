@@ -54,6 +54,7 @@ export async function renderMarketCardWithSummary(
     polyEventId,
     cardData.yesLabel,
     cardData.noLabel,
+    !cardData.untradeableReason,
   );
   if (options.includeBackToEvent && polyEventId) {
     buttons.addComponents(buildBackToEventButton(polyEventId));

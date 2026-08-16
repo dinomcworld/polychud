@@ -19,6 +19,12 @@ export interface GammaMarket {
   description: string;
   volume: number;
   volume24hr: number;
+  // Book quality, straight from Gamma. `spread` is bestAsk - bestBid on the
+  // YES token; a wide one means outcomePrices is a midpoint of nothing.
+  liquidity: number;
+  spread: number | null;
+  bestBid: number | null;
+  bestAsk: number | null;
   oneWeekPriceChange: number | null;
   oneMonthPriceChange: number | null;
   negRisk: boolean;
@@ -80,6 +86,7 @@ class TTLCache<T> {
 const marketCache = new TTLCache<GammaMarket>();
 const eventCache = new TTLCache<GammaEvent>();
 const priceCache = new TTLCache<number>();
+const quoteCache = new TTLCache<TokenQuote>();
 const historyCache = new TTLCache<PricePoint[]>();
 const tagsCache = new TTLCache<GammaTag[]>();
 
@@ -194,6 +201,10 @@ function parseMarket(raw: RawApiObject): GammaMarket {
     description: raw.description ?? "",
     volume: parseFloat(raw.volume ?? "0"),
     volume24hr: raw.volume24hr ?? 0,
+    liquidity: parseFloat(raw.liquidity ?? "0") || 0,
+    spread: numOrNull(raw.spread),
+    bestBid: numOrNull(raw.bestBid),
+    bestAsk: numOrNull(raw.bestAsk),
     oneWeekPriceChange: raw.oneWeekPriceChange ?? null,
     oneMonthPriceChange: raw.oneMonthPriceChange ?? null,
     negRisk: raw.negRisk ?? false,
@@ -230,6 +241,12 @@ function parseEvent(raw: RawApiObject): GammaEvent {
         : (raw.volume ?? 0),
     volume24hr: raw.volume24hr ?? 0,
   };
+}
+
+function numOrNull(v: unknown): number | null {
+  if (v == null) return null;
+  const n = typeof v === "string" ? parseFloat(v) : Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 function safeJsonParse<T>(str: string | T | null | undefined, fallback: T): T {
@@ -487,6 +504,58 @@ export async function getMarketByConditionId(
 
 // ─── CLOB API ─────────────────────────────────────────────────────────────────
 
+/**
+ * Top of book for one CLOB token. Note the CLOB's `side` names the side of the
+ * *resting order*, not the side you're taking: `BUY` is the best bid (what you
+ * receive selling into the book) and `SELL` is the best ask (what you pay
+ * buying from it). `mid` is the average of the two — display only; it is not a
+ * price anyone can trade at and is worthless when `spread` is wide.
+ */
+export interface TokenQuote {
+  bid: number | null;
+  ask: number | null;
+  mid: number | null;
+  spread: number | null;
+}
+
+export async function getTokenQuote(tokenId: string): Promise<TokenQuote> {
+  const cached = quoteCache.get(`quote:${tokenId}`);
+  if (cached !== null) return cached;
+
+  const response = await fetchWithRetry(
+    `${config.POLYMARKET_CLOB_URL}/prices`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify([
+        { token_id: tokenId, side: "BUY" },
+        { token_id: tokenId, side: "SELL" },
+      ]),
+    },
+  );
+  const data = (await response.json()) as Record<
+    string,
+    { BUY?: string; SELL?: string } | undefined
+  >;
+  const sides = data[tokenId] ?? {};
+  const bid = numOrNull(sides.BUY);
+  const ask = numOrNull(sides.SELL);
+
+  const quote: TokenQuote = {
+    bid,
+    ask,
+    mid: bid !== null && ask !== null ? (bid + ask) / 2 : (bid ?? ask),
+    spread: bid !== null && ask !== null ? ask - bid : null,
+  };
+
+  quoteCache.set(`quote:${tokenId}`, quote, PRICE_CACHE_TTL);
+  if (quote.mid !== null) {
+    priceCache.set(`price:${tokenId}`, quote.mid, PRICE_CACHE_TTL);
+  }
+  return quote;
+}
+
+/** Midpoint — for display and charts only. Never price a bet off this. */
 export async function getMidpointPrice(tokenId: string): Promise<number> {
   const cached = priceCache.get(`price:${tokenId}`);
   if (cached !== null) return cached;
@@ -556,6 +625,39 @@ export async function getBatchPrices(
 
 export function invalidatePriceCache(tokenId: string) {
   priceCache.delete(`price:${tokenId}`);
+  quoteCache.delete(`quote:${tokenId}`);
+}
+
+// ─── Book quality ─────────────────────────────────────────────────────────────
+
+export interface TradeabilityCheck {
+  tradeable: boolean;
+  /** User-facing explanation. Null when tradeable. */
+  reason: string | null;
+}
+
+/**
+ * Cheap pre-check from Gamma's own book stats, used to gate the bet buttons in
+ * the UI. `placeBet` re-checks against the live CLOB book, which is the
+ * authoritative gate — this one only exists to avoid offering a bet we'd refuse.
+ */
+export function checkTradeable(gamma: GammaMarket): TradeabilityCheck {
+  if (gamma.closed || !gamma.active) {
+    return { tradeable: false, reason: "This market is no longer active." };
+  }
+  if (gamma.liquidity < config.MIN_MARKET_LIQUIDITY) {
+    return {
+      tradeable: false,
+      reason: `Too illiquid to bet on ($${Math.round(gamma.liquidity)} in the book, minimum $${config.MIN_MARKET_LIQUIDITY}).`,
+    };
+  }
+  if (gamma.spread !== null && gamma.spread > config.MAX_BET_SPREAD) {
+    return {
+      tradeable: false,
+      reason: `The order book is too wide to price a bet (${(gamma.spread * 100).toFixed(0)}¢ spread, maximum ${(config.MAX_BET_SPREAD * 100).toFixed(0)}¢).`,
+    };
+  }
+  return { tradeable: true, reason: null };
 }
 
 export async function fetchPriceHistory(

@@ -7,7 +7,7 @@ import {
   StringSelectMenuBuilder,
 } from "discord.js";
 import { searchPage, searchResolvedToggle } from "../interactions/customIds.js";
-import type { GammaMarket } from "../services/polymarket.js";
+import { checkTradeable, type GammaMarket } from "../services/polymarket.js";
 import { COLORS } from "./colors.js";
 import { truncate } from "./text.js";
 
@@ -26,6 +26,8 @@ export interface MarketCardData {
   status: string;
   outcomeLabel: string | null;
   summary?: string | null;
+  /** Why betting is disabled on this market, if it is. See `checkTradeable`. */
+  untradeableReason?: string | null;
 }
 
 /** Project a Gamma API market into the shape buildMarketEmbed expects. */
@@ -48,6 +50,10 @@ export function gammaMarketToCardData(
     imageUrl: gamma.image || gamma.icon || null,
     status: gamma.closed ? "closed" : gamma.active ? "active" : "inactive",
     outcomeLabel: gamma.groupItemTitle || null,
+    // Only surfaced for markets that are otherwise live — "closed" already has
+    // its own visual treatment.
+    untradeableReason:
+      gamma.closed || !gamma.active ? null : checkTradeable(gamma).reason,
   };
 }
 
@@ -81,6 +87,14 @@ export function buildMarketEmbed(market: MarketCardData) {
     { name: truncate(market.yesLabel, 50), value: `${yesPct}%`, inline: true },
     { name: truncate(market.noLabel, 50), value: `${noPct}%`, inline: true },
   ];
+
+  if (market.untradeableReason) {
+    fields.push({
+      name: "⚠️ Betting unavailable",
+      value: truncate(market.untradeableReason, 1024),
+      inline: false,
+    });
+  }
 
   if (market.volume24h) {
     const vol = parseFloat(market.volume24h);
@@ -117,10 +131,12 @@ export function buildMarketButtons(
   polyEventId?: string | null,
   yesLabel: string = "Yes",
   noLabel: string = "No",
+  /** False when the book is too thin/wide to quote — see `checkTradeable`. */
+  tradeable: boolean = true,
 ) {
   const row = new ActionRowBuilder<ButtonBuilder>();
 
-  if (isActive) {
+  if (isActive && tradeable) {
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`bet_yes_${conditionId}`)

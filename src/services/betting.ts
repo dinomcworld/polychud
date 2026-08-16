@@ -3,8 +3,91 @@ import { config } from "../config.js";
 import { db } from "../db/index.js";
 import { bets, guildMembers, markets, users } from "../db/schema.js";
 import { logger } from "../utils/logger.js";
-import { getMidpointPrice } from "./polymarket.js";
+import { getTokenQuote } from "./polymarket.js";
 import { ensureGuildSettings, ensureUser } from "./users.js";
+
+// ─── Pricing ─────────────────────────────────────────────────────────────────
+
+export type PriceQuote =
+  | { ok: true; price: number }
+  | { ok: false; error: string };
+
+/**
+ * What it costs to open a position in `tokenId` — the best ask, i.e. the price
+ * a real buyer would actually pay.
+ *
+ * Never the midpoint. On a thin book the midpoint is a fiction: a 0.02/0.93
+ * book midpoints to 0.475, which would hand out a 2.1x payout on the other
+ * side of a market whose only real offer sits at 98¢. Quoting the ask makes
+ * the spread the house edge, exactly as it is on Polymarket itself, and the
+ * spread gate below rejects books too wide for that to leave a sane price.
+ */
+export async function quoteEntryPrice(tokenId: string): Promise<PriceQuote> {
+  let quote: Awaited<ReturnType<typeof getTokenQuote>>;
+  try {
+    quote = await getTokenQuote(tokenId);
+  } catch {
+    return {
+      ok: false,
+      error: "Couldn't fetch current price. Try again in a moment.",
+    };
+  }
+
+  if (quote.ask === null || quote.bid === null) {
+    return {
+      ok: false,
+      error: "This market has no live order book — nothing to bet against.",
+    };
+  }
+
+  if (quote.spread !== null && quote.spread > config.MAX_BET_SPREAD) {
+    return {
+      ok: false,
+      error:
+        `This market's order book is too wide to price a bet — ` +
+        `${(quote.bid * 100).toFixed(0)}¢ bid vs ${(quote.ask * 100).toFixed(0)}¢ ask ` +
+        `(${(quote.spread * 100).toFixed(0)}¢ spread, max ${(config.MAX_BET_SPREAD * 100).toFixed(0)}¢). ` +
+        `The percentage shown is a midpoint of an empty book, not a real probability.`,
+    };
+  }
+
+  if (quote.ask <= 0 || quote.ask >= 1) {
+    return {
+      ok: false,
+      error: "Market price is at an extreme. Cannot place bet.",
+    };
+  }
+
+  return { ok: true, price: quote.ask };
+}
+
+/**
+ * What an open position is worth right now — the best bid, i.e. what a real
+ * seller would receive. Marking to the midpoint instead would book an instant
+ * paper profit on every bet, since entry is at the ask.
+ */
+export async function quoteExitPrice(tokenId: string): Promise<PriceQuote> {
+  let quote: Awaited<ReturnType<typeof getTokenQuote>>;
+  try {
+    quote = await getTokenQuote(tokenId);
+  } catch {
+    return {
+      ok: false,
+      error: "Couldn't fetch current price. Try again in a moment.",
+    };
+  }
+
+  if (quote.bid === null) {
+    return {
+      ok: false,
+      error:
+        "Nobody is bidding on this outcome right now, so it can't be closed. " +
+        "Hold it until the market resolves.",
+    };
+  }
+
+  return { ok: true, price: quote.bid };
+}
 
 export interface PlaceBetResult {
   success: true;
@@ -43,22 +126,11 @@ export async function placeBet(
     return { success: false, error: "Market pricing data unavailable." };
   }
 
-  let price: number;
-  try {
-    price = await getMidpointPrice(tokenId);
-  } catch {
-    return {
-      success: false,
-      error: "Couldn't fetch current price. Try again in a moment.",
-    };
-  }
-
-  if (price <= 0 || price >= 1) {
-    return {
-      success: false,
-      error: "Market price is at an extreme. Cannot place bet.",
-    };
-  }
+  // Authoritative pricing gate: entry is the live ask, and a book too wide to
+  // quote is rejected here regardless of what the UI offered.
+  const entry = await quoteEntryPrice(tokenId);
+  if (!entry.ok) return { success: false, error: entry.error };
+  const price = entry.price;
 
   const rawPayout = amount / price;
   const cap = amount * config.MAX_PAYOUT_MULTIPLIER;
@@ -430,12 +502,16 @@ export async function closeBet(
 
       if (!market) throw new Error("Market not found.");
 
-      // Get FRESH price from CLOB
+      // Get FRESH price from CLOB. Exiting means selling, so the position is
+      // marked at the bid — closing into a thin book costs the spread, same as
+      // it would on Polymarket.
       const tokenId =
         lockedBet.outcome === "yes" ? market.yesTokenId : market.noTokenId;
       if (!tokenId) throw new Error("Market pricing unavailable.");
 
-      const currentPrice = await getMidpointPrice(tokenId);
+      const exit = await quoteExitPrice(tokenId);
+      if (!exit.ok) throw new Error(exit.error);
+      const currentPrice = exit.price;
       const entryPrice = parseFloat(lockedBet.oddsAtBet);
       const { cashOut: cashOutAmount, priceDelta } = computeCloseQuote(
         lockedBet.amount,

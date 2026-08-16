@@ -11,12 +11,11 @@ import {
   getCachedMarketSummary,
   getMarketSummary,
 } from "../services/aiSummary.js";
-import { getUserActiveBets } from "../services/betting.js";
+import { getUserActiveBets, quoteEntryPrice } from "../services/betting.js";
 import {
   type GammaMarket,
   getCachedMarket,
   getMarketByConditionId,
-  getMidpointPrice,
 } from "../services/polymarket.js";
 import { ensureGuildSettings, ensureUser } from "../services/users.js";
 import { COLORS } from "../ui/colors.js";
@@ -129,15 +128,14 @@ async function handleBetModal(interaction: ModalSubmitInteraction) {
     return;
   }
 
-  let price: number;
-  try {
-    price = await getMidpointPrice(tokenId);
-  } catch {
-    await interaction.editReply({
-      content: "Couldn't fetch current price. Try again in a moment.",
-    });
+  // Quote the same ask placeBet will charge, and surface its rejection reason
+  // here rather than after the user hits Confirm.
+  const entry = await quoteEntryPrice(tokenId);
+  if (!entry.ok) {
+    await interaction.editReply({ content: entry.error });
     return;
   }
+  const price = entry.price;
 
   const pct = (price * 100).toFixed(1);
   const potentialPayout = Math.floor(amount / price);

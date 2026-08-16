@@ -27,6 +27,7 @@ import {
   getUserActiveBets,
   getUserSettledBets,
   placeBet,
+  quoteExitPrice,
 } from "../services/betting.js";
 import { upsertStandaloneMarket } from "../services/markets.js";
 import {
@@ -34,7 +35,6 @@ import {
   getCachedMarket,
   getEventById,
   getMarketByConditionId,
-  getMidpointPrice,
   searchMarkets,
 } from "../services/polymarket.js";
 import {
@@ -926,7 +926,12 @@ export async function showCloseBetPreview(
       return;
     }
 
-    const currentPrice = await getMidpointPrice(tokenId);
+    const exit = await quoteExitPrice(tokenId);
+    if (!exit.ok) {
+      await interaction.editReply({ content: exit.error });
+      return;
+    }
+    const currentPrice = exit.price;
     const entryPrice = parseFloat(bet.oddsAtBet);
     const timestamp = Date.now();
 
@@ -992,7 +997,16 @@ async function handleConfirmClose(interaction: ButtonInteraction) {
         return;
       }
 
-      const currentPrice = await getMidpointPrice(tokenId);
+      const exit = await quoteExitPrice(tokenId);
+      if (!exit.ok) {
+        await interaction.editReply({
+          content: exit.error,
+          embeds: [],
+          components: [],
+        });
+        return;
+      }
+      const currentPrice = exit.price;
       const entryPrice = parseFloat(bet.oddsAtBet);
       const newTimestamp = Date.now();
 
