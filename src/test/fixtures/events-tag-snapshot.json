@@ -1,0 +1,976 @@
+[
+  {
+    "id": "899514",
+    "slug": "epl-eve-mun-2026-09-06",
+    "tags": [
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100350",
+        "label": "Soccer",
+        "slug": "soccer",
+        "forceShow": false,
+        "createdAt": "2024-08-21T16:31:18.953213Z",
+        "updatedAt": "2026-04-17T20:33:09.955379Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "82",
+        "label": "Premier League",
+        "slug": "premier-league",
+        "forceShow": false,
+        "publishedAt": "2023-11-02 21:17:21.654+00",
+        "createdAt": "2023-11-02T21:17:21.66Z",
+        "updatedAt": "2026-04-17T21:08:02.988086Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "306",
+        "label": "EPL",
+        "slug": "EPL",
+        "forceShow": false,
+        "publishedAt": "2023-11-02 21:53:01.244+00",
+        "createdAt": "2023-11-02T21:53:01.251Z",
+        "updatedAt": "2026-04-17T20:31:50.149157Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "971101",
+    "slug": "cs2-ts7-mouz-2026-09-06",
+    "tags": [
+      {
+        "id": "64",
+        "label": "Esports",
+        "slug": "esports",
+        "forceShow": false,
+        "publishedAt": "2023-11-02 21:15:31.924+00",
+        "createdAt": "2023-11-02T21:15:31.93Z",
+        "updatedAt": "2026-04-17T17:17:48.190087Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100780",
+        "label": "counter strike 2",
+        "slug": "counter-strike-2",
+        "createdAt": "2024-10-09T18:28:05.24087Z",
+        "updatedAt": "2026-04-17T20:22:34.269125Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "970068",
+    "slug": "lol-nip-lgd-2026-09-06",
+    "tags": [
+      {
+        "id": "64",
+        "label": "Esports",
+        "slug": "esports",
+        "forceShow": false,
+        "publishedAt": "2023-11-02 21:15:31.924+00",
+        "createdAt": "2023-11-02T21:15:31.93Z",
+        "updatedAt": "2026-04-17T17:17:48.190087Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "65",
+        "label": "league of legends",
+        "slug": "league-of-legends",
+        "publishedAt": "2023-11-02 21:15:32.598+00",
+        "createdAt": "2023-11-02T21:15:32.602Z",
+        "updatedAt": "2026-04-17T20:29:06.931935Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "970923",
+    "slug": "lol-g2-kc-2026-09-06",
+    "tags": [
+      {
+        "id": "64",
+        "label": "Esports",
+        "slug": "esports",
+        "forceShow": false,
+        "publishedAt": "2023-11-02 21:15:31.924+00",
+        "createdAt": "2023-11-02T21:15:31.93Z",
+        "updatedAt": "2026-04-17T17:17:48.190087Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "65",
+        "label": "league of legends",
+        "slug": "league-of-legends",
+        "publishedAt": "2023-11-02 21:15:32.598+00",
+        "createdAt": "2023-11-02T21:15:32.602Z",
+        "updatedAt": "2026-04-17T20:29:06.931935Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "899518",
+    "slug": "epl-ars-che-2026-09-06",
+    "tags": [
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100350",
+        "label": "Soccer",
+        "slug": "soccer",
+        "forceShow": false,
+        "createdAt": "2024-08-21T16:31:18.953213Z",
+        "updatedAt": "2026-04-17T20:33:09.955379Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "82",
+        "label": "Premier League",
+        "slug": "premier-league",
+        "forceShow": false,
+        "publishedAt": "2023-11-02 21:17:21.654+00",
+        "createdAt": "2023-11-02T21:17:21.66Z",
+        "updatedAt": "2026-04-17T21:08:02.988086Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "306",
+        "label": "EPL",
+        "slug": "EPL",
+        "forceShow": false,
+        "publishedAt": "2023-11-02 21:53:01.244+00",
+        "createdAt": "2023-11-02T21:53:01.251Z",
+        "updatedAt": "2026-04-17T20:31:50.149157Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "899837",
+    "slug": "epl-ars-che-2026-09-06-more-markets",
+    "tags": [
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100350",
+        "label": "Soccer",
+        "slug": "soccer",
+        "forceShow": false,
+        "createdAt": "2024-08-21T16:31:18.953213Z",
+        "updatedAt": "2026-04-17T20:33:09.955379Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "82",
+        "label": "Premier League",
+        "slug": "premier-league",
+        "forceShow": false,
+        "publishedAt": "2023-11-02 21:17:21.654+00",
+        "createdAt": "2023-11-02T21:17:21.66Z",
+        "updatedAt": "2026-04-17T21:08:02.988086Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "306",
+        "label": "EPL",
+        "slug": "EPL",
+        "forceShow": false,
+        "publishedAt": "2023-11-02 21:53:01.244+00",
+        "createdAt": "2023-11-02T21:53:01.251Z",
+        "updatedAt": "2026-04-17T20:31:50.149157Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "481717",
+    "slug": "fed-decision-in-september-762",
+    "tags": [
+      {
+        "id": "100478",
+        "label": "fomc",
+        "slug": "fomc",
+        "createdAt": "2024-09-18T16:39:12.895052Z",
+        "updatedAt": "2026-04-17T20:41:15.156214Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "101800",
+        "label": "Economic Policy",
+        "slug": "economic-policy",
+        "forceShow": false,
+        "createdAt": "2025-02-06T18:05:50.554703Z",
+        "updatedAt": "2026-04-17T20:34:30.088167Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100196",
+        "label": "Fed Rates",
+        "slug": "fed-rates",
+        "forceShow": true,
+        "updatedAt": "2026-04-17T17:15:07.579162Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "101550",
+        "label": "Jerome Powell",
+        "slug": "jerome-powell",
+        "createdAt": "2024-12-18T23:06:40.410115Z",
+        "updatedAt": "2026-04-17T17:26:03.169374Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "2",
+        "label": "Politics",
+        "slug": "politics",
+        "forceShow": false,
+        "publishedAt": "2023-10-25 18:55:50.674+00",
+        "updatedBy": 13,
+        "createdAt": "2023-10-25T18:55:50.681Z",
+        "updatedAt": "2026-04-17T20:39:54.201881Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "159",
+        "label": "Fed",
+        "slug": "fed",
+        "forceShow": false,
+        "publishedAt": "2023-11-02 21:27:18.98+00",
+        "createdAt": "2023-11-02T21:27:18.986Z",
+        "updatedAt": "2026-04-17T21:09:42.963001Z",
+        "isCarousel": false,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100328",
+        "label": "Economy",
+        "slug": "economy",
+        "forceShow": false,
+        "createdAt": "2024-08-05T05:34:54.235643Z",
+        "updatedAt": "2026-04-17T20:29:06.948273Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "105614",
+        "label": "CPI Release",
+        "slug": "cpi-release",
+        "forceShow": false,
+        "createdAt": "2026-07-13T16:21:39.23125Z",
+        "updatedAt": "2026-07-13T16:25:05.4713Z",
+        "isCarousel": false,
+        "requiresTranslation": false
+      },
+      {
+        "id": "102548",
+        "label": "Jobs Report",
+        "slug": "jobs-report",
+        "forceShow": false,
+        "createdAt": "2025-09-04T16:26:08.450225Z",
+        "updatedAt": "2026-04-17T21:10:45.377465Z",
+        "isCarousel": false,
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "79987",
+    "slug": "next-french-presidential-election",
+    "tags": [
+      {
+        "id": "100282",
+        "label": "French Election",
+        "slug": "french-election",
+        "forceShow": true,
+        "createdAt": "2024-06-24T15:42:35.370921Z",
+        "updatedAt": "2026-04-17T20:52:30.987573Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "104743",
+        "label": "Main Election",
+        "slug": "main-election",
+        "createdAt": "2026-04-22T17:40:04.678394Z",
+        "updatedAt": "2026-04-22T17:45:02.315601Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "1378",
+        "label": "France",
+        "slug": "france",
+        "forceShow": false,
+        "publishedAt": "2024-02-21 00:21:54.303+00",
+        "createdAt": "2024-02-21T00:21:54.404Z",
+        "updatedAt": "2026-04-17T20:46:36.664748Z",
+        "isCarousel": false,
+        "requiresTranslation": false
+      },
+      {
+        "id": "101970",
+        "label": "World",
+        "slug": "world",
+        "forceShow": false,
+        "createdAt": "2025-03-19T23:36:08.498099Z",
+        "updatedAt": "2026-04-17T17:18:59.135061Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "2",
+        "label": "Politics",
+        "slug": "politics",
+        "forceShow": false,
+        "publishedAt": "2023-10-25 18:55:50.674+00",
+        "updatedBy": 13,
+        "createdAt": "2023-10-25T18:55:50.681Z",
+        "updatedAt": "2026-04-17T20:39:54.201881Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "1597",
+        "label": "Global Elections",
+        "slug": "global-elections",
+        "forceShow": true,
+        "publishedAt": "2024-03-07 20:44:01.258+00",
+        "createdBy": 15,
+        "updatedBy": 15,
+        "createdAt": "2024-03-07T20:41:56.773Z",
+        "updatedAt": "2026-04-17T21:08:23.096987Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "144",
+        "label": "Elections",
+        "slug": "elections",
+        "forceShow": false,
+        "publishedAt": "2023-11-02 21:24:31.008+00",
+        "updatedBy": 13,
+        "createdAt": "2023-11-02T21:24:31.198Z",
+        "updatedAt": "2026-04-17T17:22:31.696566Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "941708",
+    "slug": "mlb-mil-cin-2026-09-06",
+    "tags": [
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100381",
+        "label": "MLB",
+        "slug": "mlb",
+        "createdAt": "2024-08-27T16:42:20.841409Z",
+        "updatedAt": "2026-04-17T20:23:34.251722Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "678",
+        "label": "baseball",
+        "slug": "baseball",
+        "publishedAt": "2023-12-08 16:24:40.695+00",
+        "createdAt": "2023-12-08T16:24:40.771Z",
+        "updatedAt": "2026-04-17T20:45:56.084941Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "966889",
+    "slug": "wta-sabalen-townsen-2026-09-06",
+    "tags": [
+      {
+        "id": "864",
+        "label": "Tennis",
+        "slug": "tennis",
+        "forceShow": false,
+        "publishedAt": "2024-01-12 19:45:09.662+00",
+        "createdAt": "2024-01-12T19:45:09.677Z",
+        "updatedAt": "2026-04-17T20:48:44.296144Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "815310",
+    "slug": "f1-italian-grand-prix-winner-2026-09-06",
+    "tags": [
+      {
+        "id": "435",
+        "label": "Formula 1",
+        "slug": "formula1",
+        "forceShow": false,
+        "publishedAt": "2023-11-02 23:07:46.275+00",
+        "createdAt": "2023-11-02T23:07:46.289Z",
+        "updatedAt": "2026-04-17T20:40:55.161835Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100389",
+        "label": "f1",
+        "slug": "f1",
+        "createdAt": "2024-08-28T16:40:04.306172Z",
+        "updatedAt": "2026-04-17T20:45:56.055866Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "102146",
+        "label": "Grand Prix",
+        "slug": "grand-prix",
+        "createdAt": "2025-05-20T17:19:49.383053Z",
+        "updatedAt": "2026-04-17T17:18:39.098738Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "106191",
+        "label": "F1: Italian GP",
+        "slug": "f1-italian-grand-prix-2026",
+        "forceShow": false,
+        "createdAt": "2026-09-04T20:30:17.044982Z",
+        "updatedAt": "2026-09-04T20:35:08.811807Z",
+        "isCarousel": false,
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "139236",
+    "slug": "2026-mens-us-open-winner-tennis",
+    "tags": [
+      {
+        "id": "100408",
+        "label": "US Open",
+        "slug": "us-open",
+        "forceShow": false,
+        "createdAt": "2024-09-03T14:57:12.592923Z",
+        "updatedAt": "2026-04-17T20:49:04.257144Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "101232",
+        "label": "ATP",
+        "slug": "atp",
+        "createdAt": "2024-11-11T23:15:27.873657Z",
+        "updatedAt": "2026-04-17T20:30:49.622632Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "864",
+        "label": "Tennis",
+        "slug": "tennis",
+        "forceShow": false,
+        "publishedAt": "2024-01-12 19:45:09.662+00",
+        "createdAt": "2024-01-12T19:45:09.677Z",
+        "updatedAt": "2026-04-17T20:48:44.296144Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "941712",
+    "slug": "mlb-det-cle-2026-09-06",
+    "tags": [
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100381",
+        "label": "MLB",
+        "slug": "mlb",
+        "createdAt": "2024-08-27T16:42:20.841409Z",
+        "updatedAt": "2026-04-17T20:23:34.251722Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "678",
+        "label": "baseball",
+        "slug": "baseball",
+        "publishedAt": "2023-12-08 16:24:40.695+00",
+        "createdAt": "2023-12-08T16:24:40.771Z",
+        "updatedAt": "2026-04-17T20:45:56.084941Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "913014",
+    "slug": "cfb-unlv-hawaii-2026-09-05",
+    "tags": [
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100351",
+        "label": "CFB",
+        "slug": "cfb",
+        "createdAt": "2024-08-21T17:54:11.636176Z",
+        "updatedAt": "2026-04-17T20:42:53.455829Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "659671",
+    "slug": "uefa-champions-league-2027-champion-20260701202025549",
+    "tags": [
+      {
+        "id": "100977",
+        "label": "UCL",
+        "slug": "ucl",
+        "createdAt": "2024-10-21T21:33:46.586267Z",
+        "updatedAt": "2026-04-17T20:45:13.945348Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100350",
+        "label": "Soccer",
+        "slug": "soccer",
+        "forceShow": false,
+        "createdAt": "2024-08-21T16:31:18.953213Z",
+        "updatedAt": "2026-04-17T20:33:09.955379Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "1234",
+        "label": "Champions League",
+        "slug": "champions-league",
+        "forceShow": false,
+        "publishedAt": "2024-02-06 20:04:23.286+00",
+        "createdAt": "2024-02-06T20:04:23.293Z",
+        "updatedAt": "2026-04-17T20:15:31.35869Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "967050",
+    "slug": "atp-paul-alcaraz-2026-09-06",
+    "tags": [
+      {
+        "id": "864",
+        "label": "Tennis",
+        "slug": "tennis",
+        "forceShow": false,
+        "publishedAt": "2024-01-12 19:45:09.662+00",
+        "createdAt": "2024-01-12T19:45:09.677Z",
+        "updatedAt": "2026-04-17T20:48:44.296144Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "912934",
+    "slug": "cfb-boise-ore-2026-09-05",
+    "tags": [
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100351",
+        "label": "CFB",
+        "slug": "cfb",
+        "createdAt": "2024-08-21T17:54:11.636176Z",
+        "updatedAt": "2026-04-17T20:42:53.455829Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "912996",
+    "slug": "cfb-clmsn-lsu-2026-09-05",
+    "tags": [
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100351",
+        "label": "CFB",
+        "slug": "cfb",
+        "createdAt": "2024-08-21T17:54:11.636176Z",
+        "updatedAt": "2026-04-17T20:42:53.455829Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "941710",
+    "slug": "mlb-bos-bal-2026-09-06",
+    "tags": [
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100381",
+        "label": "MLB",
+        "slug": "mlb",
+        "createdAt": "2024-08-27T16:42:20.841409Z",
+        "updatedAt": "2026-04-17T20:23:34.251722Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "678",
+        "label": "baseball",
+        "slug": "baseball",
+        "publishedAt": "2023-12-08 16:24:40.695+00",
+        "createdAt": "2023-12-08T16:24:40.771Z",
+        "updatedAt": "2026-04-17T20:45:56.084941Z",
+        "requiresTranslation": false
+      }
+    ]
+  },
+  {
+    "id": "912933",
+    "slug": "cfb-tulane-duke-2026-09-05",
+    "tags": [
+      {
+        "id": "1",
+        "label": "Sports",
+        "slug": "sports",
+        "forceShow": false,
+        "publishedAt": "2023-10-24 22:37:50.296+00",
+        "updatedBy": 15,
+        "createdAt": "2023-10-24T22:37:50.31Z",
+        "updatedAt": "2026-04-17T20:47:16.461062Z",
+        "forceHide": true,
+        "requiresTranslation": false
+      },
+      {
+        "id": "100351",
+        "label": "CFB",
+        "slug": "cfb",
+        "createdAt": "2024-08-21T17:54:11.636176Z",
+        "updatedAt": "2026-04-17T20:42:53.455829Z",
+        "requiresTranslation": false
+      },
+      {
+        "id": "100639",
+        "label": "Games",
+        "slug": "games",
+        "forceShow": false,
+        "createdAt": "2024-09-23T22:41:37.670714Z",
+        "updatedAt": "2026-03-09T22:28:03.358133Z",
+        "requiresTranslation": false
+      }
+    ]
+  }
+]
