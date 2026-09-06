@@ -1,0 +1,390 @@
+[
+  {
+    "id": "1",
+    "label": "Sports",
+    "slug": "sports",
+    "forceShow": false,
+    "publishedAt": "2023-10-24 22:37:50.296+00",
+    "updatedBy": 15,
+    "createdAt": "2023-10-24T22:37:50.31Z",
+    "updatedAt": "2026-04-17T20:47:16.461062Z",
+    "forceHide": true,
+    "requiresTranslation": false
+  },
+  {
+    "id": "2",
+    "label": "Politics",
+    "slug": "politics",
+    "forceShow": false,
+    "publishedAt": "2023-10-25 18:55:50.674+00",
+    "updatedBy": 13,
+    "createdAt": "2023-10-25T18:55:50.681Z",
+    "updatedAt": "2026-04-17T20:39:54.201881Z",
+    "forceHide": true,
+    "requiresTranslation": false
+  },
+  {
+    "id": "3",
+    "label": "video games",
+    "slug": "video-games",
+    "publishedAt": "2023-11-02 21:02:48.659+00",
+    "createdAt": "2023-11-02T21:02:48.665Z",
+    "updatedAt": "2026-04-17T17:15:47.553908Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "4",
+    "label": "GTA 6",
+    "slug": "gta-6",
+    "forceShow": false,
+    "publishedAt": "2023-11-02 21:02:49.215+00",
+    "createdAt": "2023-11-02T21:02:49.226Z",
+    "updatedAt": "2026-05-14T16:00:09.562484Z",
+    "isCarousel": false,
+    "requiresTranslation": false
+  },
+  {
+    "id": "5",
+    "label": "release date",
+    "slug": "release-date",
+    "publishedAt": "2023-11-02 21:02:49.635+00",
+    "createdAt": "2023-11-02T21:02:49.644Z",
+    "updatedAt": "2026-04-17T20:16:43.028435Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "6",
+    "label": "musk",
+    "slug": "musk",
+    "publishedAt": "2023-11-02 21:02:59.27+00",
+    "createdAt": "2023-11-02T21:02:59.284Z",
+    "updatedAt": "2026-04-17T20:38:54.144015Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "7",
+    "label": "zuck",
+    "slug": "zuck",
+    "publishedAt": "2023-11-02 21:02:59.886+00",
+    "createdAt": "2023-11-02T21:02:59.893Z",
+    "updatedAt": "2026-04-17T17:16:07.89803Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "8",
+    "label": "future events",
+    "slug": "future-events",
+    "publishedAt": "2023-11-02 21:03:00.521+00",
+    "updatedBy": 13,
+    "createdAt": "2023-11-02T21:03:00.525Z",
+    "updatedAt": "2026-04-17T20:46:56.484407Z",
+    "forceHide": true,
+    "requiresTranslation": false
+  },
+  {
+    "id": "10",
+    "label": "football",
+    "slug": "football",
+    "publishedAt": "2023-11-02 21:03:21.116+00",
+    "updatedBy": 15,
+    "createdAt": "2023-11-02T21:03:21.126Z",
+    "updatedAt": "2026-04-17T20:55:07.728399Z",
+    "forceHide": true,
+    "requiresTranslation": false
+  },
+  {
+    "id": "11",
+    "label": "jets",
+    "slug": "jets",
+    "publishedAt": "2023-11-02 21:03:22.189+00",
+    "createdAt": "2023-11-02T21:03:22.197Z",
+    "updatedAt": "2026-04-17T20:14:31.273619Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "12",
+    "label": "chargers",
+    "slug": "chargers",
+    "publishedAt": "2023-11-02 21:03:22.674+00",
+    "createdAt": "2023-11-02T21:03:22.678Z",
+    "updatedAt": "2026-04-17T20:20:54.165304Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "13",
+    "label": "texans",
+    "slug": "texans",
+    "publishedAt": "2023-11-02 21:03:30.316+00",
+    "createdAt": "2023-11-02T21:03:30.333Z",
+    "updatedAt": "2026-04-17T20:57:31.909189Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "14",
+    "label": "buccaneers",
+    "slug": "buccaneers",
+    "publishedAt": "2023-11-02 21:03:31.086+00",
+    "createdAt": "2023-11-02T21:03:31.1Z",
+    "updatedAt": "2026-04-17T20:44:33.678075Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "15",
+    "label": "Joe Biden",
+    "slug": "joe-biden",
+    "forceShow": false,
+    "publishedAt": "2023-11-02 21:03:39.389+00",
+    "updatedBy": 15,
+    "createdAt": "2023-11-02T21:03:39.396Z",
+    "updatedAt": "2026-04-17T17:20:19.232133Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "16",
+    "label": "time magazine",
+    "slug": "time-magazine",
+    "publishedAt": "2023-11-02 21:03:40.48+00",
+    "createdAt": "2023-11-02T21:03:40.485Z",
+    "updatedAt": "2026-04-17T17:28:03.243284Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "17",
+    "label": "person of the year",
+    "slug": "person-of-the-year",
+    "publishedAt": "2023-11-02 21:03:41.132+00",
+    "createdAt": "2023-11-02T21:03:41.137Z",
+    "updatedAt": "2026-04-17T20:47:36.533315Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "18",
+    "label": "Awards",
+    "slug": "awards",
+    "forceShow": false,
+    "publishedAt": "2023-11-02 21:03:41.709+00",
+    "createdAt": "2023-11-02T21:03:41.713Z",
+    "updatedAt": "2026-04-17T20:42:53.495391Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "19",
+    "label": "Ethereum Dencun",
+    "slug": "ethereum-dencun",
+    "forceShow": false,
+    "publishedAt": "2023-11-02 21:03:52.819+00",
+    "updatedBy": 15,
+    "createdAt": "2023-11-02T21:03:52.824Z",
+    "updatedAt": "2026-04-17T20:47:16.475869Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "20",
+    "label": "blockchain",
+    "slug": "blockchain",
+    "publishedAt": "2023-11-02 21:03:53.702+00",
+    "createdAt": "2023-11-02T21:03:53.72Z",
+    "updatedAt": "2026-04-17T20:56:08.190266Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "21",
+    "label": "Crypto",
+    "slug": "crypto",
+    "forceShow": false,
+    "publishedAt": "2023-11-02 21:03:54.55+00",
+    "updatedBy": 15,
+    "createdAt": "2023-11-02T21:03:54.564Z",
+    "updatedAt": "2026-03-09T22:28:03.349847Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "22",
+    "label": "technology",
+    "slug": "technology",
+    "publishedAt": "2023-11-02 21:03:55.067+00",
+    "createdAt": "2023-11-02T21:03:55.073Z",
+    "updatedAt": "2026-04-15T20:46:22.34623Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "24",
+    "label": "deprec USA Election",
+    "slug": "deprec-us-election",
+    "forceShow": true,
+    "publishedAt": "2023-11-02 21:04:03.712+00",
+    "updatedBy": 15,
+    "createdAt": "2023-11-02T21:04:03.723Z",
+    "updatedAt": "2026-07-23T20:38:51.44797Z",
+    "isCarousel": false,
+    "requiresTranslation": false
+  },
+  {
+    "id": "25",
+    "label": "tim scott",
+    "slug": "tim-scott",
+    "publishedAt": "2023-11-02 21:04:04.398+00",
+    "createdAt": "2023-11-02T21:04:04.401Z",
+    "updatedAt": "2026-04-17T17:23:51.971681Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "26",
+    "label": "republican party",
+    "slug": "republican-party",
+    "publishedAt": "2023-11-02 21:04:05.072+00",
+    "createdAt": "2023-11-02T21:04:05.078Z",
+    "updatedAt": "2026-04-17T20:36:56.434801Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "27",
+    "label": "vice presidential nomination",
+    "slug": "vice-presidential-nomination",
+    "publishedAt": "2023-11-02 21:04:05.645+00",
+    "createdAt": "2023-11-02T21:04:05.649Z",
+    "updatedAt": "2026-04-17T20:50:04.321023Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "28",
+    "label": "Basketball",
+    "slug": "basketball",
+    "forceShow": false,
+    "publishedAt": "2023-11-02 21:04:25.152+00",
+    "createdAt": "2023-11-02T21:04:25.158Z",
+    "updatedAt": "2026-04-17T20:16:02.304942Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "29",
+    "label": "pelicans",
+    "slug": "pelicans",
+    "publishedAt": "2023-11-02 21:04:25.749+00",
+    "createdAt": "2023-11-02T21:04:25.754Z",
+    "updatedAt": "2026-03-09T22:33:38.556009Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "30",
+    "label": "pistons",
+    "slug": "pistons",
+    "publishedAt": "2023-11-02 21:04:26.578+00",
+    "createdAt": "2023-11-02T21:04:26.584Z",
+    "updatedAt": "2026-04-15T20:30:55.943799Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "31",
+    "label": "thunder",
+    "slug": "thunder",
+    "publishedAt": "2023-11-02 21:04:37.119+00",
+    "createdAt": "2023-11-02T21:04:37.125Z",
+    "updatedAt": "2026-04-17T17:21:21.028467Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "32",
+    "label": "warriors",
+    "slug": "warriors",
+    "publishedAt": "2023-11-02 21:04:37.826+00",
+    "createdAt": "2023-11-02T21:04:37.83Z",
+    "updatedAt": "2026-04-15T20:30:55.936034Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "33",
+    "label": "knicks",
+    "slug": "knicks",
+    "publishedAt": "2023-11-02 21:04:46.389+00",
+    "createdAt": "2023-11-02T21:04:46.393Z",
+    "updatedAt": "2026-04-17T20:36:56.412121Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "34",
+    "label": "clippers",
+    "slug": "clippers",
+    "publishedAt": "2023-11-02 21:04:46.867+00",
+    "createdAt": "2023-11-02T21:04:46.872Z",
+    "updatedAt": "2026-04-17T20:22:14.207076Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "35",
+    "label": "bucks",
+    "slug": "bucks",
+    "publishedAt": "2023-11-02 21:04:56.937+00",
+    "createdAt": "2023-11-02T21:04:56.971Z",
+    "updatedAt": "2026-04-15T21:03:59.567275Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "36",
+    "label": "gaming",
+    "slug": "gaming",
+    "publishedAt": "2023-11-02 21:07:10.779+00",
+    "createdAt": "2023-11-02T21:07:10.793Z",
+    "updatedAt": "2026-04-17T17:16:28.172505Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "37",
+    "label": "celebrity events",
+    "slug": "celebrity-events",
+    "publishedAt": "2023-11-02 21:07:34.577+00",
+    "createdAt": "2023-11-02T21:07:34.605Z",
+    "updatedAt": "2026-04-17T20:25:08.10755Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "38",
+    "label": "news",
+    "slug": "news",
+    "publishedAt": "2023-11-02 21:08:04.753+00",
+    "createdAt": "2023-11-02T21:08:04.76Z",
+    "updatedAt": "2026-04-17T20:30:49.662831Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "39",
+    "label": "Ethereum",
+    "slug": "ethereum",
+    "forceShow": false,
+    "publishedAt": "2023-11-02 21:08:15.934+00",
+    "updatedBy": 15,
+    "createdAt": "2023-11-02T21:08:15.95Z",
+    "updatedAt": "2026-04-17T20:49:04.26767Z",
+    "forceHide": false,
+    "requiresTranslation": false
+  },
+  {
+    "id": "40",
+    "label": "2024 elections",
+    "slug": "2024-elections",
+    "publishedAt": "2023-11-02 21:08:43.313+00",
+    "createdAt": "2023-11-02T21:08:43.318Z",
+    "updatedAt": "2026-04-17T20:47:36.526667Z",
+    "requiresTranslation": false
+  },
+  {
+    "id": "41",
+    "label": "predictions",
+    "slug": "predictions",
+    "publishedAt": "2023-11-02 21:11:09.19+00",
+    "updatedBy": 13,
+    "createdAt": "2023-11-02T21:11:09.194Z",
+    "updatedAt": "2026-04-17T20:52:10.053712Z",
+    "forceHide": true,
+    "requiresTranslation": false
+  },
+  {
+    "id": "42",
+    "label": "software updates",
+    "slug": "software-updates",
+    "publishedAt": "2023-11-02 21:11:52.684+00",
+    "createdAt": "2023-11-02T21:11:52.696Z",
+    "updatedAt": "2026-04-17T17:26:23.153465Z",
+    "requiresTranslation": false
+  }
+]
