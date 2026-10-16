@@ -24,7 +24,7 @@
     "drizzle-kit": "^0.31.10",
     "simple-git-hooks": "^2.13.1",
     "tsx": "^4.22.3",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
