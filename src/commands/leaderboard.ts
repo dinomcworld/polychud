@@ -13,6 +13,7 @@ import {
   leaderboardPage,
   leaderboardRefresh,
 } from "../interactions/customIds.js";
+import { getWinRateCounts } from "../services/users.js";
 import { COLORS } from "../ui/colors.js";
 import { buildPrevNext, paginate } from "../ui/paginate.js";
 import { requireGuildId } from "../utils/guards.js";
@@ -50,7 +51,7 @@ export const leaderboardCommand: Command = {
           { name: "Points (balance)", value: "points" },
           { name: "Skill (accumulated %)", value: "skill" },
           { name: "Average (per bet)", value: "average" },
-          { name: "Win rate (% of settled bets won)", value: "winrate" },
+          { name: "Win rate (% of settled markets won)", value: "winrate" },
         ),
     ),
 
@@ -251,14 +252,22 @@ export async function buildLeaderboardView(
       break;
 
     case "winrate": {
-      const winRateFor = (m: MemberWithUser) =>
-        m.totalBetsSettled > 0 ? m.totalWon / m.totalBetsSettled : 0;
+      // Repeat bets on the same market side count once.
+      const winCounts = await getWinRateCounts(guildId);
+      const countsFor = (m: MemberWithUser) =>
+        winCounts.get(m.userId) ?? { settled: 0, won: 0 };
+      const winRateFor = (m: MemberWithUser) => {
+        const { settled, won } = countsFor(m);
+        return settled > 0 ? won / settled : 0;
+      };
       sorted = [...visibleMembers]
-        .filter((m) => m.totalBetsSettled > 0)
+        .filter((m) => countsFor(m).settled > 0)
         .sort((a, b) => winRateFor(b) - winRateFor(a));
       title = "Leaderboard — Win Rate";
-      formatValue = (m) =>
-        `${(winRateFor(m) * 100).toFixed(1)}% (${m.totalWon}/${m.totalBetsSettled})`;
+      formatValue = (m) => {
+        const { settled, won } = countsFor(m);
+        return `${(winRateFor(m) * 100).toFixed(1)}% (${won}/${settled})`;
+      };
       break;
     }
 
