@@ -47,7 +47,7 @@ import {
   getUserStats,
 } from "../services/users.js";
 import { buildBetListView } from "../ui/betList.js";
-import { renderPriceChart } from "../ui/chart.js";
+import { loadChartIcon, renderPriceChart } from "../ui/chart.js";
 import {
   buildClosePreviewComponents,
   buildClosePreviewEmbed,
@@ -337,7 +337,10 @@ const CHART_TIMEFRAMES: Array<{
   interval: ChartInterval;
   label: string;
   pillLabel: string;
+  /** Bucket size in minutes. */
   fidelity: number;
+  /** The finest fidelity the CLOB accepts for this interval. */
+  minFidelity: number;
   footer: string;
 }> = [
   {
@@ -345,6 +348,7 @@ const CHART_TIMEFRAMES: Array<{
     label: "6H",
     pillLabel: "6H",
     fidelity: 5,
+    minFidelity: 1,
     footer: "6-hour price history",
   },
   {
@@ -352,6 +356,7 @@ const CHART_TIMEFRAMES: Array<{
     label: "1D",
     pillLabel: "1D",
     fidelity: 30,
+    minFidelity: 1,
     footer: "24-hour price history",
   },
   {
@@ -359,6 +364,7 @@ const CHART_TIMEFRAMES: Array<{
     label: "1W",
     pillLabel: "1W",
     fidelity: 60,
+    minFidelity: 5,
     footer: "1-week price history",
   },
   {
@@ -366,6 +372,7 @@ const CHART_TIMEFRAMES: Array<{
     label: "1M",
     pillLabel: "1M",
     fidelity: 240,
+    minFidelity: 10,
     footer: "1-month price history",
   },
   {
@@ -373,9 +380,36 @@ const CHART_TIMEFRAMES: Array<{
     label: "ALL",
     pillLabel: "ALL",
     fidelity: 1440,
+    minFidelity: 1,
     footer: "Full price history",
   },
 ];
+
+/** A chart looks broken with only a handful of points. */
+const MIN_CHART_POINTS = 30;
+
+/** Price history for a timeframe. A young market's coarse ALL/1M buckets
+ * (daily / 4-hourly) can hold just a couple of points, so when they do,
+ * refetch at a fidelity that spreads ~150 points over the span it covers. */
+async function fetchChartHistory(
+  tokenId: string,
+  tf: (typeof CHART_TIMEFRAMES)[number],
+) {
+  const points = await fetchPriceHistory(tokenId, tf.interval, tf.fidelity);
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (points.length >= MIN_CHART_POINTS || !first || !last) return points;
+  const spanMinutes = (last.t - first.t) / 60;
+  const finer = Math.max(tf.minFidelity, Math.floor(spanMinutes / 150));
+  if (finer >= tf.fidelity) return points;
+  try {
+    const refetched = await fetchPriceHistory(tokenId, tf.interval, finer);
+    return refetched.length > points.length ? refetched : points;
+  } catch (err) {
+    logger.debug(`Finer price history failed for ${tokenId}: ${err}`);
+    return points;
+  }
+}
 
 async function handleChart(interaction: ButtonInteraction) {
   // Edit the market card in place — Back to Market reverses it. Cleaner than
@@ -408,11 +442,11 @@ async function handleChart(interaction: ButtonInteraction) {
       return;
     }
 
-    const points = await fetchPriceHistory(
-      yesTokenId,
-      tf.interval,
-      tf.fidelity,
-    );
+    // Start the icon fetch now so it overlaps the price history request.
+    const iconUrl = gamma.image || gamma.icon || null;
+    if (iconUrl) void loadChartIcon(iconUrl);
+
+    const points = await fetchChartHistory(yesTokenId, tf);
     if (points.length < 2) {
       await ephemeralError(
         `Not enough ${tf.label} price history yet for this market.`,
@@ -424,14 +458,18 @@ async function handleChart(interaction: ButtonInteraction) {
     const last = points[points.length - 1]?.p ?? 0;
     const direction = last > first ? "up" : last < first ? "down" : "flat";
 
-    const rawTitle = gamma.groupItemTitle
-      ? `${gamma.groupItemTitle} — ${gamma.question}`
-      : gamma.question;
+    // Prefix the outcome name unless the question already says it
+    // ("Tampa Bay Rays — Will the Tampa Bay Rays win…").
+    const rawTitle =
+      gamma.groupItemTitle &&
+      !gamma.question.toLowerCase().includes(gamma.groupItemTitle.toLowerCase())
+        ? `${gamma.groupItemTitle} — ${gamma.question}`
+        : gamma.question;
     const png = await renderPriceChart(points, {
       title: rawTitle,
       direction,
       timeframe: tf.pillLabel,
-      iconUrl: gamma.image || gamma.icon || null,
+      iconUrl,
     });
     if (!png) {
       await ephemeralError("Couldn't render chart.");
