@@ -11,6 +11,196 @@
 
 type Decoded<T> = T | null;
 
+/** Returns the part of `id` after `prefix`, or null if `id` doesn't start
+ * with it. */
+function stripPrefix(id: string, prefix: string): string | null {
+  return id.startsWith(prefix) ? id.slice(prefix.length) : null;
+}
+
+/** Strict integer parse: rejects "", "1.5", "3abc" (unlike parseInt/Number). */
+function parseIntStrict(str: string): number | null {
+  return /^-?\d+$/.test(str) ? Number(str) : null;
+}
+
+/** Splits `{conditionId}[_evt{polyEventId}]`. */
+function decodeMarketRef(
+  rest: string,
+): Decoded<{ conditionId: string; polyEventId: string | null }> {
+  const evtIdx = rest.indexOf("_evt");
+  const conditionId = evtIdx >= 0 ? rest.slice(0, evtIdx) : rest;
+  const polyEventId = evtIdx >= 0 ? rest.slice(evtIdx + 4) : null;
+  if (!conditionId || polyEventId === "") return null;
+  return { conditionId, polyEventId };
+}
+
+function encodeMarketRef(
+  conditionId: string,
+  polyEventId: string | null | undefined,
+): string {
+  return polyEventId ? `${conditionId}_evt${polyEventId}` : conditionId;
+}
+
+// ─── Fixed IDs ──────────────────────────────────────────────────────────────
+
+export const staticIds = {
+  cancelBet: "cancel_bet",
+  cancelClose: "cancel_close",
+  marketSelect: "market_select",
+  betsCloseSelect: "bets_close_select",
+  /** Text input inside the bet modal (not a routed component). */
+  betAmountInput: "bet_amount",
+} as const;
+
+// ─── Market card ────────────────────────────────────────────────────────────
+
+export type BetOutcome = "yes" | "no";
+
+export const betButton = {
+  yesPrefix: "bet_yes_",
+  noPrefix: "bet_no_",
+  encode: (outcome: BetOutcome, conditionId: string) =>
+    `bet_${outcome}_${conditionId}`,
+  decode: (
+    id: string,
+  ): Decoded<{ outcome: BetOutcome; conditionId: string }> => {
+    const parts = id.split("_");
+    if (parts.length !== 3 || parts[0] !== "bet") return null;
+    const [, outcome, conditionId] = parts;
+    if ((outcome !== "yes" && outcome !== "no") || !conditionId) return null;
+    return { outcome, conditionId };
+  },
+};
+
+export const marketRefresh = {
+  prefix: "refresh_",
+  encode: (conditionId: string, polyEventId?: string | null) =>
+    `refresh_${encodeMarketRef(conditionId, polyEventId)}`,
+  decode: (id: string) => {
+    const rest = stripPrefix(id, "refresh_");
+    return rest === null ? null : decodeMarketRef(rest);
+  },
+};
+
+export const CHART_INTERVALS = ["6h", "1d", "1w", "1m", "max"] as const;
+export type ChartInterval = (typeof CHART_INTERVALS)[number];
+export const DEFAULT_CHART_INTERVAL: ChartInterval = "1w";
+
+function isChartInterval(str: string): str is ChartInterval {
+  return (CHART_INTERVALS as readonly string[]).includes(str);
+}
+
+export const chart = {
+  prefix: "chart_",
+  /** The default interval is omitted so the market card's original "Chart"
+   * button (`chart_{conditionId}[_evt...]`) keeps working unchanged. */
+  encode: (
+    conditionId: string,
+    polyEventId?: string | null,
+    interval: ChartInterval = DEFAULT_CHART_INTERVAL,
+  ) => {
+    const tf = interval === DEFAULT_CHART_INTERVAL ? "" : `_tf${interval}`;
+    return `chart_${encodeMarketRef(conditionId, polyEventId)}${tf}`;
+  },
+  /** Format: `chart_{conditionId}[_evt{polyEventId}][_tf{interval}]`. An
+   * unknown interval suffix is left in place and falls back to the default. */
+  decode: (
+    id: string,
+  ): Decoded<{
+    conditionId: string;
+    polyEventId: string | null;
+    interval: ChartInterval;
+  }> => {
+    let rest = stripPrefix(id, "chart_");
+    if (rest === null) return null;
+    let interval: ChartInterval = DEFAULT_CHART_INTERVAL;
+    const tfIdx = rest.lastIndexOf("_tf");
+    if (tfIdx >= 0) {
+      const candidate = rest.slice(tfIdx + 3);
+      if (isChartInterval(candidate)) {
+        interval = candidate;
+        rest = rest.slice(0, tfIdx);
+      }
+    }
+    const ref = decodeMarketRef(rest);
+    return ref ? { ...ref, interval } : null;
+  },
+};
+
+export const chartBack = {
+  prefix: "chart_back_",
+  encode: (conditionId: string, polyEventId?: string | null) =>
+    `chart_back_${encodeMarketRef(conditionId, polyEventId)}`,
+  decode: (id: string) => {
+    const rest = stripPrefix(id, "chart_back_");
+    return rest === null ? null : decodeMarketRef(rest);
+  },
+};
+
+// ─── Event card ─────────────────────────────────────────────────────────────
+
+function eventIdCodec(prefix: string) {
+  return {
+    prefix,
+    encode: (polyEventId: string) => `${prefix}${polyEventId}`,
+    decode: (id: string): Decoded<{ polyEventId: string }> => {
+      const polyEventId = stripPrefix(id, prefix);
+      return polyEventId ? { polyEventId } : null;
+    },
+  };
+}
+
+export const eventRefresh = eventIdCodec("refresh_event_");
+export const backToEvent = eventIdCodec("back_event_");
+export const eventSelect = eventIdCodec("event_select_");
+
+export const eventResolvedToggle = {
+  showPrefix: "show_resolved_",
+  hidePrefix: "hide_resolved_",
+  encode: (showResolved: boolean, polyEventId: string) =>
+    `${showResolved ? "show_resolved_" : "hide_resolved_"}${polyEventId}`,
+  decode: (
+    id: string,
+  ): Decoded<{ showResolved: boolean; polyEventId: string }> => {
+    const shown = stripPrefix(id, "show_resolved_");
+    const hidden = stripPrefix(id, "hide_resolved_");
+    const polyEventId = shown ?? hidden;
+    if (!polyEventId) return null;
+    return { showResolved: shown !== null, polyEventId };
+  },
+};
+
+// ─── Market browse pagination ───────────────────────────────────────────────
+
+function pageCodec(prefix: string) {
+  return {
+    prefix,
+    encode: (page: number) => `${prefix}${page}`,
+    decode: (id: string): Decoded<{ page: number }> => {
+      const rest = stripPrefix(id, prefix);
+      const page = rest === null ? null : parseIntStrict(rest);
+      return page === null ? null : { page };
+    },
+  };
+}
+
+export const trendingPage = pageCodec("trending_page_");
+export const newPage = pageCodec("new_page_");
+
+export const categoryPage = {
+  prefix: "cat_page_",
+  encode: (page: number, tagSlug: string) => `cat_page_${page}_${tagSlug}`,
+  decode: (id: string): Decoded<{ page: number; tagSlug: string }> => {
+    const rest = stripPrefix(id, "cat_page_");
+    if (rest === null) return null;
+    const sep = rest.indexOf("_");
+    if (sep < 0) return null;
+    const page = parseIntStrict(rest.slice(0, sep));
+    const tagSlug = rest.slice(sep + 1);
+    if (page === null || !tagSlug) return null;
+    return { page, tagSlug };
+  },
+};
+
 // ─── Bet placement / confirmation ───────────────────────────────────────────
 
 export const betModal = {
@@ -51,6 +241,18 @@ export const confirmBet = {
 };
 
 // ─── Close-bet flow ─────────────────────────────────────────────────────────
+
+/** Legacy: nothing renders this button any more (the bet list closes via
+ * `bets_close_select`), but it stays routable for buttons already in chat. */
+export const closeBetButton = {
+  prefix: "close_bet_",
+  encode: (betId: number) => `close_bet_${betId}`,
+  decode: (id: string): Decoded<{ betId: number }> => {
+    const rest = stripPrefix(id, "close_bet_");
+    const betId = rest === null ? null : parseIntStrict(rest);
+    return betId === null ? null : { betId };
+  },
+};
 
 export const confirmClose = {
   prefix: "confirm_close_",

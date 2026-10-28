@@ -13,6 +13,7 @@ import { renderMarketCardWithSummary } from "../ui/marketCardRender.js";
 import { actorContext, marketContext } from "../utils/logContext.js";
 import { logger } from "../utils/logger.js";
 import { showCloseBetPreview } from "./buttons.js";
+import { eventSelect, staticIds } from "./customIds.js";
 
 export async function handleSelectMenu(
   interaction: StringSelectMenuInteraction,
@@ -23,11 +24,11 @@ export async function handleSelectMenu(
     `select: ${actorContext(interaction)} customId=${id} values=${JSON.stringify(interaction.values)}${marketContext(id, ...interaction.values)}`,
   );
 
-  if (id === "market_select") {
+  if (id === staticIds.marketSelect) {
     await handleMarketSelect(interaction);
-  } else if (id.startsWith("event_select_")) {
+  } else if (id.startsWith(eventSelect.prefix)) {
     await handleEventSelect(interaction);
-  } else if (id === "bets_close_select") {
+  } else if (id === staticIds.betsCloseSelect) {
     await handleBetsCloseSelect(interaction);
   } else {
     await interaction.reply({
@@ -104,10 +105,10 @@ async function handleBetsCloseSelect(interaction: StringSelectMenuInteraction) {
 async function handleEventSelect(interaction: StringSelectMenuInteraction) {
   await interaction.deferUpdate();
 
-  // event_select_{polyEventId}
-  const polyEventId = interaction.customId.split("_")[2];
+  const decoded = eventSelect.decode(interaction.customId);
   const conditionId = interaction.values[0];
-  if (!polyEventId || !conditionId) return;
+  if (!decoded || !conditionId) return;
+  const { polyEventId } = decoded;
 
   try {
     // Fetch market from cache or API

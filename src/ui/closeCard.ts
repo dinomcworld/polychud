@@ -4,7 +4,7 @@ import {
   ButtonStyle,
   EmbedBuilder,
 } from "discord.js";
-import { confirmClose } from "../interactions/customIds.js";
+import { confirmClose, staticIds } from "../interactions/customIds.js";
 import { computeCloseQuote } from "../services/betting.js";
 import { COLORS } from "./colors.js";
 import { outcomeLabel, resolveOutcomeLabels } from "./outcomeLabels.js";
@@ -76,7 +76,7 @@ export function buildClosePreviewComponents(
       .setLabel("Confirm Close")
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId("cancel_close")
+      .setCustomId(staticIds.cancelClose)
       .setLabel("Cancel")
       .setStyle(ButtonStyle.Secondary),
   );

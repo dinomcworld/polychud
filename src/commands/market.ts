@@ -1,4 +1,7 @@
-import { SlashCommandBuilder } from "discord.js";
+import {
+  type ChatInputCommandInteraction,
+  SlashCommandBuilder,
+} from "discord.js";
 import {
   getAllTags,
   getEventById,
@@ -109,9 +112,7 @@ export const marketCommand: Command = {
   },
 };
 
-async function handleSearch(
-  interaction: import("discord.js").ChatInputCommandInteraction,
-) {
+async function handleSearch(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
   const query = interaction.options.getString("query", true);
 
@@ -209,9 +210,7 @@ export async function renderTrendingView(page = 0) {
   };
 }
 
-async function handleTrending(
-  interaction: import("discord.js").ChatInputCommandInteraction,
-) {
+async function handleTrending(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
 
   try {
@@ -253,9 +252,7 @@ export async function renderNewView(page = 0) {
   };
 }
 
-async function handleNew(
-  interaction: import("discord.js").ChatInputCommandInteraction,
-) {
+async function handleNew(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
 
   try {
@@ -296,9 +293,7 @@ export async function renderCategoryView(tagSlug: string, page = 0) {
   };
 }
 
-async function handleCategory(
-  interaction: import("discord.js").ChatInputCommandInteraction,
-) {
+async function handleCategory(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
   const tagSlug = interaction.options.getString("tag", true).trim();
 
@@ -351,9 +346,7 @@ function parseViewInput(
   return null;
 }
 
-async function handleView(
-  interaction: import("discord.js").ChatInputCommandInteraction,
-) {
+async function handleView(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
   const input = interaction.options.getString("input", true).trim();
 
@@ -381,7 +374,7 @@ async function handleView(
 }
 
 async function handleViewBySlug(
-  interaction: import("discord.js").ChatInputCommandInteraction,
+  interaction: ChatInputCommandInteraction,
   slug: string,
 ) {
   // Fetch from Gamma API (no DB write)
@@ -425,7 +418,7 @@ async function handleViewBySlug(
 }
 
 async function handleViewById(
-  interaction: import("discord.js").ChatInputCommandInteraction,
+  interaction: ChatInputCommandInteraction,
   polyEventId: number,
 ) {
   const gammaEvent = await getEventById(String(polyEventId));

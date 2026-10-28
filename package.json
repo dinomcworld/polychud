@@ -10,6 +10,8 @@
     "cancel-market": "bun src/scripts/cancelMarket.ts",
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:e2e": "bun test ./e2e --preload ./e2e/setup.ts",
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "format": "biome format --write",
@@ -19,20 +21,21 @@
     "pre-commit": "bunx biome check --staged --no-errors-on-unmatched --write && git update-index --again"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.15",
-    "@types/node": "^25.9.1",
-    "drizzle-kit": "^0.31.10",
-    "simple-git-hooks": "^2.13.1",
-    "tsx": "^4.22.3",
-    "typescript": "^6.0.3"
+    "@biomejs/biome": "^2.6.3",
+    "@electric-sql/pglite": "^0.5.12",
+    "@types/bun": "^1.4.4",
+    "@types/node": "^26.6.5",
+    "drizzle-kit": "^0.31.11",
+    "simple-git-hooks": "^2.14.0",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
-    "discord.js": "^14.26.4",
-    "dotenv": "^17.4.2",
-    "drizzle-orm": "^0.45.2",
-    "node-cron": "^4.2.1",
+    "discord.js": "^14.27.0",
+    "dotenv": "^18.0.9",
+    "drizzle-orm": "^0.45.4",
+    "node-cron": "^4.6.0",
     "postgres": "^3.4.9",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   }
 }

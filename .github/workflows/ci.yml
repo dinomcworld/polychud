@@ -21,3 +21,18 @@ jobs:
           SKIP_INSTALL_SIMPLE_GIT_HOOKS: 1
       - run: bun run lint
       - run: bun run typecheck
+      - run: bun run test
+
+  # Live Polymarket + in-memory Postgres. Kept separate from `check` so an
+  # upstream outage shows up as its own red job rather than masking lint/unit.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+        env:
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: 1
+      - run: bun run test:e2e

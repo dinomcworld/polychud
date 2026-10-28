@@ -1,0 +1,5 @@
+[test]
+# Unit tests only. The e2e suite lives in ./e2e and runs via `bun run test:e2e`
+# with its own preload (in-memory Postgres + live Polymarket).
+root = "src"
+preload = ["./src/test/setup.ts"]

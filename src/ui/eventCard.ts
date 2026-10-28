@@ -5,6 +5,12 @@ import {
   EmbedBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
+import {
+  backToEvent,
+  eventRefresh,
+  eventResolvedToggle,
+  eventSelect,
+} from "../interactions/customIds.js";
 import type { GammaEvent } from "../services/polymarket.js";
 import { COLORS } from "./colors.js";
 import { escapeMarkdown, type SearchResultItem } from "./marketCard.js";
@@ -135,7 +141,7 @@ export function buildEventSelectMenu(
   const sorted = [...selectable].sort((a, b) => b.yesPrice - a.yesPrice);
 
   const menu = new StringSelectMenuBuilder()
-    .setCustomId(`event_select_${event.polyEventId}`)
+    .setCustomId(eventSelect.encode(event.polyEventId))
     .setPlaceholder("Select an outcome to bet on...")
     .addOptions(
       sorted.slice(0, 25).map((o) => {
@@ -166,7 +172,7 @@ export function buildEventButtons(
 
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(`refresh_event_${polyEventId}`)
+      .setCustomId(eventRefresh.encode(polyEventId))
       .setLabel("Refresh")
       .setStyle(ButtonStyle.Secondary),
   );
@@ -174,11 +180,7 @@ export function buildEventButtons(
   if (hasHiddenOutcomes || showResolved) {
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId(
-          showResolved
-            ? `hide_resolved_${polyEventId}`
-            : `show_resolved_${polyEventId}`,
-        )
+        .setCustomId(eventResolvedToggle.encode(!showResolved, polyEventId))
         .setLabel(showResolved ? "Hide Resolved" : "Show Resolved")
         .setStyle(ButtonStyle.Secondary),
     );
@@ -198,7 +200,7 @@ export function buildEventButtons(
 
 export function buildBackToEventButton(polyEventId: string) {
   return new ButtonBuilder()
-    .setCustomId(`back_event_${polyEventId}`)
+    .setCustomId(backToEvent.encode(polyEventId))
     .setLabel("Back to Event")
     .setStyle(ButtonStyle.Secondary);
 }

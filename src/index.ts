@@ -1,5 +1,6 @@
 import {
   ActivityType,
+  type ChatInputCommandInteraction,
   Client,
   Collection,
   Events,
@@ -7,7 +8,6 @@ import {
   MessageFlags,
 } from "discord.js";
 import { betCommand } from "./commands/bet.js";
-// Import commands
 import { dailyCommand } from "./commands/daily.js";
 import { helpCommand } from "./commands/help.js";
 import { leaderboardCommand } from "./commands/leaderboard.js";
@@ -16,12 +16,10 @@ import { portfolioCommand } from "./commands/portfolio.js";
 import type { Command } from "./commands/types.js";
 import { config } from "./config.js";
 import { runMigrations } from "./db/migrate.js";
-// Import interaction handlers
 import { handleButton } from "./interactions/buttons.js";
 import { handleModal } from "./interactions/modals.js";
 import { handleSelectMenu } from "./interactions/selects.js";
 import { startPoller, stopPoller } from "./jobs/poller.js";
-// Import jobs
 import { startResolver, stopResolver } from "./jobs/resolver.js";
 import { consumeNewSettlements } from "./services/betting.js";
 import {
@@ -119,7 +117,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
  * (closed_early) are excluded — the user already saw the close card.
  */
 async function maybeNotifySettlements(
-  interaction: import("discord.js").ChatInputCommandInteraction,
+  interaction: ChatInputCommandInteraction,
 ) {
   if (!interaction.guildId) return;
 
@@ -186,4 +184,4 @@ process.on("SIGINT", () => void shutdown("SIGINT"));
 
 // Run migrations then start
 await runMigrations();
-client.login(config.DISCORD_TOKEN);
+await client.login(config.DISCORD_TOKEN);

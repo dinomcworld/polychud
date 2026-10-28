@@ -8,11 +8,15 @@ import {
   LabelBuilder,
   MessageFlags,
   ModalBuilder,
+  type StringSelectMenuInteraction,
   TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
-import { buildLeaderboardView } from "../commands/leaderboard.js";
+import {
+  buildLeaderboardView,
+  type LeaderboardSort,
+} from "../commands/leaderboard.js";
 import {
   renderCategoryView,
   renderNewView,
@@ -43,7 +47,7 @@ import {
   getUserStats,
 } from "../services/users.js";
 import { buildBetListView } from "../ui/betList.js";
-import { renderPriceChart } from "../ui/chart.js";
+import { loadChartIcon, renderPriceChart } from "../ui/chart.js";
 import {
   buildClosePreviewComponents,
   buildClosePreviewEmbed,
@@ -75,18 +79,31 @@ import { requireGuildId } from "../utils/guards.js";
 import { actorContext, marketContext } from "../utils/logContext.js";
 import { logger } from "../utils/logger.js";
 import {
+  backToEvent,
+  betButton,
   betModal,
   betsPage,
   betsToggle,
+  type ChartInterval,
+  categoryPage,
+  chart,
+  chartBack,
+  closeBetButton,
   confirmBet,
   confirmClose,
+  eventRefresh,
+  eventResolvedToggle,
   leaderboardPage,
   leaderboardRefresh,
+  marketRefresh,
+  newPage,
   portfolioPage,
   portfolioRefresh,
   portfolioToggle,
   searchPage,
   searchResolvedToggle,
+  staticIds,
+  trendingPage,
 } from "./customIds.js";
 
 type ButtonHandler = (interaction: ButtonInteraction) => Promise<void>;
@@ -100,23 +117,23 @@ async function handleCancel(interaction: ButtonInteraction) {
 }
 
 const EXACT_ROUTES: Record<string, ButtonHandler> = {
-  cancel_bet: handleCancel,
-  cancel_close: handleCancel,
+  [staticIds.cancelBet]: handleCancel,
+  [staticIds.cancelClose]: handleCancel,
 };
 
 /** Prefix → handler. Sorted at module load by descending prefix length so
  * `confirm_close_` wins over `confirm_` and `refresh_event_` wins over
  * `refresh_`, regardless of declaration order here. */
 const PREFIX_ROUTES: Array<[string, ButtonHandler]> = [
-  ["bet_yes_", handleBetButton],
-  ["bet_no_", handleBetButton],
-  ["refresh_event_", handleRefreshEvent],
-  ["refresh_", handleRefresh],
-  ["chart_back_", handleChartBack],
-  ["chart_", handleChart],
+  [betButton.yesPrefix, handleBetButton],
+  [betButton.noPrefix, handleBetButton],
+  [eventRefresh.prefix, handleRefreshEvent],
+  [marketRefresh.prefix, handleRefresh],
+  [chartBack.prefix, handleChartBack],
+  [chart.prefix, handleChart],
   [confirmClose.prefix, handleConfirmClose],
   [confirmBet.prefix, handleConfirm],
-  ["close_bet_", handleCloseBet],
+  [closeBetButton.prefix, handleCloseBet],
   [betsPage.prefix, handleBetsPage],
   [betsToggle.prefix, handleBetsToggle],
   [portfolioPage.prefix, handlePortfolioPage],
@@ -127,12 +144,12 @@ const PREFIX_ROUTES: Array<[string, ButtonHandler]> = [
   [searchResolvedToggle.showPrefix, handleToggleSearchResolved],
   [searchResolvedToggle.hidePrefix, handleToggleSearchResolved],
   [searchPage.prefix, handleSearchPage],
-  ["trending_page_", handleTrendingPage],
-  ["new_page_", handleNewPage],
-  ["cat_page_", handleCategoryPage],
-  ["show_resolved_", handleToggleResolved],
-  ["hide_resolved_", handleToggleResolved],
-  ["back_event_", handleBackToEvent],
+  [trendingPage.prefix, handleTrendingPage],
+  [newPage.prefix, handleNewPage],
+  [categoryPage.prefix, handleCategoryPage],
+  [eventResolvedToggle.showPrefix, handleToggleResolved],
+  [eventResolvedToggle.hidePrefix, handleToggleResolved],
+  [backToEvent.prefix, handleBackToEvent],
 ];
 
 const SORTED_ROUTES: ReadonlyArray<[string, ButtonHandler]> = [
@@ -166,12 +183,9 @@ export async function handleButton(interaction: ButtonInteraction) {
 }
 
 async function handleBetButton(interaction: ButtonInteraction) {
-  // bet_yes_{conditionId} or bet_no_{conditionId}
-  const [, outcome, conditionId] = interaction.customId.split("_") as [
-    string,
-    "yes" | "no",
-    string,
-  ];
+  const decoded = betButton.decode(interaction.customId);
+  if (!decoded) return;
+  const { outcome, conditionId } = decoded;
 
   rememberMarketMessage(
     interaction.user.id,
@@ -206,7 +220,7 @@ async function handleBetButton(interaction: ButtonInteraction) {
     .setTitle(`Place a ${label} bet`);
 
   const amountInput = new TextInputBuilder()
-    .setCustomId("bet_amount")
+    .setCustomId(staticIds.betAmountInput)
     .setStyle(TextInputStyle.Short)
     .setPlaceholder("e.g., 100")
     .setRequired(true)
@@ -230,11 +244,9 @@ async function handleBetButton(interaction: ButtonInteraction) {
 
 async function handleRefresh(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // refresh_{conditionId} or refresh_{conditionId}_evt{polyEventId}
-  const raw = interaction.customId.slice("refresh_".length);
-  const evtIdx = raw.indexOf("_evt");
-  const conditionId = evtIdx >= 0 ? raw.slice(0, evtIdx) : raw;
-  const polyEventId = evtIdx >= 0 ? raw.slice(evtIdx + 4) : null;
+  const decoded = marketRefresh.decode(interaction.customId);
+  if (!decoded) return;
+  const { conditionId, polyEventId } = decoded;
 
   try {
     // If within an event, fetch the event to get proper market context
@@ -282,8 +294,9 @@ async function handleRefresh(interaction: ButtonInteraction) {
 
 async function handleRefreshEvent(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // refresh_event_{polyEventId}
-  const polyEventId = interaction.customId.slice("refresh_event_".length);
+  const decoded = eventRefresh.decode(interaction.customId);
+  if (!decoded) return;
+  const { polyEventId } = decoded;
 
   try {
     const gammaEvent = await getEventById(polyEventId);
@@ -320,13 +333,14 @@ async function handleRefreshEvent(interaction: ButtonInteraction) {
   }
 }
 
-type ChartInterval = "6h" | "1d" | "1w" | "1m" | "max";
-
 const CHART_TIMEFRAMES: Array<{
   interval: ChartInterval;
   label: string;
   pillLabel: string;
+  /** Bucket size in minutes. */
   fidelity: number;
+  /** The finest fidelity the CLOB accepts for this interval. */
+  minFidelity: number;
   footer: string;
 }> = [
   {
@@ -334,6 +348,7 @@ const CHART_TIMEFRAMES: Array<{
     label: "6H",
     pillLabel: "6H",
     fidelity: 5,
+    minFidelity: 1,
     footer: "6-hour price history",
   },
   {
@@ -341,6 +356,7 @@ const CHART_TIMEFRAMES: Array<{
     label: "1D",
     pillLabel: "1D",
     fidelity: 30,
+    minFidelity: 1,
     footer: "24-hour price history",
   },
   {
@@ -348,6 +364,7 @@ const CHART_TIMEFRAMES: Array<{
     label: "1W",
     pillLabel: "1W",
     fidelity: 60,
+    minFidelity: 5,
     footer: "1-week price history",
   },
   {
@@ -355,6 +372,7 @@ const CHART_TIMEFRAMES: Array<{
     label: "1M",
     pillLabel: "1M",
     fidelity: 240,
+    minFidelity: 10,
     footer: "1-month price history",
   },
   {
@@ -362,56 +380,45 @@ const CHART_TIMEFRAMES: Array<{
     label: "ALL",
     pillLabel: "ALL",
     fidelity: 1440,
+    minFidelity: 1,
     footer: "Full price history",
   },
 ];
 
-const DEFAULT_CHART_INTERVAL: ChartInterval = "1w";
+/** A chart looks broken with only a handful of points. */
+const MIN_CHART_POINTS = 30;
 
-function parseChartCustomId(raw: string): {
-  conditionId: string;
-  polyEventId: string | null;
-  interval: ChartInterval;
-} {
-  // Format: {conditionId}[_evt{polyEventId}][_tf{interval}]
-  let rest = raw;
-  let interval: ChartInterval = DEFAULT_CHART_INTERVAL;
-  const tfIdx = rest.lastIndexOf("_tf");
-  if (tfIdx >= 0) {
-    const candidate = rest.slice(tfIdx + 3) as ChartInterval;
-    if (CHART_TIMEFRAMES.some((t) => t.interval === candidate)) {
-      interval = candidate;
-      rest = rest.slice(0, tfIdx);
-    }
+/** Price history for a timeframe. A young market's coarse ALL/1M buckets
+ * (daily / 4-hourly) can hold just a couple of points, so when they do,
+ * refetch at a fidelity that spreads ~150 points over the span it covers. */
+async function fetchChartHistory(
+  tokenId: string,
+  tf: (typeof CHART_TIMEFRAMES)[number],
+) {
+  const points = await fetchPriceHistory(tokenId, tf.interval, tf.fidelity);
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (points.length >= MIN_CHART_POINTS || !first || !last) return points;
+  const spanMinutes = (last.t - first.t) / 60;
+  const finer = Math.max(tf.minFidelity, Math.floor(spanMinutes / 150));
+  if (finer >= tf.fidelity) return points;
+  try {
+    const refetched = await fetchPriceHistory(tokenId, tf.interval, finer);
+    return refetched.length > points.length ? refetched : points;
+  } catch (err) {
+    logger.debug(`Finer price history failed for ${tokenId}: ${err}`);
+    return points;
   }
-  const evtIdx = rest.indexOf("_evt");
-  const conditionId = evtIdx >= 0 ? rest.slice(0, evtIdx) : rest;
-  const polyEventId = evtIdx >= 0 ? rest.slice(evtIdx + 4) : null;
-  return { conditionId, polyEventId, interval };
-}
-
-function chartCustomId(
-  conditionId: string,
-  polyEventId: string | null,
-  interval: ChartInterval,
-): string {
-  const evt = polyEventId ? `_evt${polyEventId}` : "";
-  // Default interval is omitted so the existing "Chart" button on the market
-  // card (`chart_{conditionId}[_evt...]`) keeps working unchanged.
-  const tf = interval === DEFAULT_CHART_INTERVAL ? "" : `_tf${interval}`;
-  return `chart_${conditionId}${evt}${tf}`;
 }
 
 async function handleChart(interaction: ButtonInteraction) {
   // Edit the market card in place — Back to Market reverses it. Cleaner than
   // an ephemeral follow-up, which leaves duplicate chat behind on Back.
   await interaction.deferUpdate();
-  const { conditionId, polyEventId, interval } = parseChartCustomId(
-    interaction.customId.slice("chart_".length),
-  );
-  const tf =
-    CHART_TIMEFRAMES.find((t) => t.interval === interval) ??
-    CHART_TIMEFRAMES[2]; // 1w fallback
+  const decoded = chart.decode(interaction.customId);
+  if (!decoded) return;
+  const { conditionId, polyEventId, interval } = decoded;
+  const tf = CHART_TIMEFRAMES.find((t) => t.interval === interval);
   if (!tf) return;
 
   // We deferred via deferUpdate, so the original market card is untouched
@@ -435,11 +442,11 @@ async function handleChart(interaction: ButtonInteraction) {
       return;
     }
 
-    const points = await fetchPriceHistory(
-      yesTokenId,
-      tf.interval,
-      tf.fidelity,
-    );
+    // Start the icon fetch now so it overlaps the price history request.
+    const iconUrl = gamma.image || gamma.icon || null;
+    if (iconUrl) void loadChartIcon(iconUrl);
+
+    const points = await fetchChartHistory(yesTokenId, tf);
     if (points.length < 2) {
       await ephemeralError(
         `Not enough ${tf.label} price history yet for this market.`,
@@ -451,14 +458,18 @@ async function handleChart(interaction: ButtonInteraction) {
     const last = points[points.length - 1]?.p ?? 0;
     const direction = last > first ? "up" : last < first ? "down" : "flat";
 
-    const rawTitle = gamma.groupItemTitle
-      ? `${gamma.groupItemTitle} — ${gamma.question}`
-      : gamma.question;
+    // Prefix the outcome name unless the question already says it
+    // ("Tampa Bay Rays — Will the Tampa Bay Rays win…").
+    const rawTitle =
+      gamma.groupItemTitle &&
+      !gamma.question.toLowerCase().includes(gamma.groupItemTitle.toLowerCase())
+        ? `${gamma.groupItemTitle} — ${gamma.question}`
+        : gamma.question;
     const png = await renderPriceChart(points, {
       title: rawTitle,
       direction,
       timeframe: tf.pillLabel,
-      iconUrl: gamma.image || gamma.icon || null,
+      iconUrl,
     });
     if (!png) {
       await ephemeralError("Couldn't render chart.");
@@ -483,10 +494,9 @@ async function handleChart(interaction: ButtonInteraction) {
       .setImage("attachment://chart.png")
       .setFooter({ text: `${tf.footer} • Polymarket` });
 
-    const evtSuffix = polyEventId ? `_evt${polyEventId}` : "";
     const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(`chart_back_${conditionId}${evtSuffix}`)
+        .setCustomId(chartBack.encode(conditionId, polyEventId))
         .setLabel("◀ Back to Market")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
@@ -497,7 +507,7 @@ async function handleChart(interaction: ButtonInteraction) {
     const tfRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       ...CHART_TIMEFRAMES.map((t) =>
         new ButtonBuilder()
-          .setCustomId(chartCustomId(conditionId, polyEventId, t.interval))
+          .setCustomId(chart.encode(conditionId, polyEventId, t.interval))
           .setLabel(t.label)
           .setStyle(
             t.interval === interval
@@ -523,11 +533,9 @@ async function handleChart(interaction: ButtonInteraction) {
 
 async function handleChartBack(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // chart_back_{conditionId} or chart_back_{conditionId}_evt{polyEventId}
-  const raw = interaction.customId.slice("chart_back_".length);
-  const evtIdx = raw.indexOf("_evt");
-  const conditionId = evtIdx >= 0 ? raw.slice(0, evtIdx) : raw;
-  const polyEventId = evtIdx >= 0 ? raw.slice(evtIdx + 4) : null;
+  const decoded = chartBack.decode(interaction.customId);
+  if (!decoded) return;
+  const { conditionId, polyEventId } = decoded;
 
   try {
     if (polyEventId) {
@@ -577,8 +585,9 @@ async function handleChartBack(interaction: ButtonInteraction) {
 
 async function handleBackToEvent(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // back_event_{polyEventId}
-  const polyEventId = interaction.customId.slice("back_event_".length);
+  const decoded = backToEvent.decode(interaction.customId);
+  if (!decoded) return;
+  const { polyEventId } = decoded;
 
   try {
     const gammaEvent = await getEventById(polyEventId);
@@ -825,7 +834,7 @@ async function handleLeaderboardRefresh(interaction: ButtonInteraction) {
   if (!guildId) return;
   const view = await buildLeaderboardView(
     guildId,
-    decoded.sort as import("../commands/leaderboard.js").LeaderboardSort,
+    decoded.sort as LeaderboardSort,
     decoded.all,
     decoded.page,
   );
@@ -840,7 +849,7 @@ async function handleLeaderboardPage(interaction: ButtonInteraction) {
   if (!guildId) return;
   const view = await buildLeaderboardView(
     guildId,
-    decoded.sort as import("../commands/leaderboard.js").LeaderboardSort,
+    decoded.sort as LeaderboardSort,
     decoded.all,
     decoded.page,
   );
@@ -855,17 +864,13 @@ async function handlePortfolioToggle(interaction: ButtonInteraction) {
 }
 
 async function handleCloseBet(interaction: ButtonInteraction) {
-  // close_bet_{betId}
-  const betIdStr = interaction.customId.split("_")[2];
-  if (!betIdStr) return;
-  const betId = parseInt(betIdStr, 10);
-  await showCloseBetPreview(interaction, betId);
+  const decoded = closeBetButton.decode(interaction.customId);
+  if (!decoded) return;
+  await showCloseBetPreview(interaction, decoded.betId);
 }
 
 export async function showCloseBetPreview(
-  interaction:
-    | ButtonInteraction
-    | import("discord.js").StringSelectMenuInteraction,
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
   betId: number,
 ) {
   // Preview is ephemeral (only the bettor sees the confirm/cancel prompt).
@@ -1173,11 +1178,9 @@ async function handleSearchPage(interaction: ButtonInteraction) {
 
 async function handleTrendingPage(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  const page = parseInt(
-    interaction.customId.slice("trending_page_".length),
-    10,
-  );
-  if (Number.isNaN(page)) return;
+  const decoded = trendingPage.decode(interaction.customId);
+  if (!decoded) return;
+  const { page } = decoded;
 
   try {
     const view = await renderTrendingView(page);
@@ -1201,8 +1204,9 @@ async function handleTrendingPage(interaction: ButtonInteraction) {
 
 async function handleNewPage(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  const page = parseInt(interaction.customId.slice("new_page_".length), 10);
-  if (Number.isNaN(page)) return;
+  const decoded = newPage.decode(interaction.customId);
+  if (!decoded) return;
+  const { page } = decoded;
 
   try {
     const view = await renderNewView(page);
@@ -1226,13 +1230,9 @@ async function handleNewPage(interaction: ButtonInteraction) {
 
 async function handleCategoryPage(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  // cat_page_{page}_{tagSlug}
-  const rest = interaction.customId.slice("cat_page_".length);
-  const sep = rest.indexOf("_");
-  if (sep < 0) return;
-  const page = parseInt(rest.slice(0, sep), 10);
-  const tagSlug = rest.slice(sep + 1);
-  if (Number.isNaN(page) || !tagSlug) return;
+  const decoded = categoryPage.decode(interaction.customId);
+  if (!decoded) return;
+  const { page, tagSlug } = decoded;
 
   try {
     const view = await renderCategoryView(tagSlug, page);
@@ -1256,10 +1256,9 @@ async function handleCategoryPage(interaction: ButtonInteraction) {
 
 async function handleToggleResolved(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  const showResolved = interaction.customId.startsWith("show_resolved_");
-  // show_resolved_{polyEventId} or hide_resolved_{polyEventId}
-  const polyEventId = interaction.customId.split("_")[2];
-  if (!polyEventId) return;
+  const decoded = eventResolvedToggle.decode(interaction.customId);
+  if (!decoded) return;
+  const { showResolved, polyEventId } = decoded;
 
   try {
     const gammaEvent = await getEventById(polyEventId);

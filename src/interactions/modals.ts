@@ -24,7 +24,7 @@ import { truncate } from "../ui/text.js";
 import { requireGuildId } from "../utils/guards.js";
 import { actorContext, marketContext } from "../utils/logContext.js";
 import { logger } from "../utils/logger.js";
-import { betModal, confirmBet } from "./customIds.js";
+import { betModal, confirmBet, staticIds } from "./customIds.js";
 
 export async function handleModal(interaction: ModalSubmitInteraction) {
   const id = interaction.customId;
@@ -53,7 +53,9 @@ async function handleBetModal(interaction: ModalSubmitInteraction) {
   }
   const { conditionId, outcome } = decoded;
 
-  const amountStr = interaction.fields.getTextInputValue("bet_amount").trim();
+  const amountStr = interaction.fields
+    .getTextInputValue(staticIds.betAmountInput)
+    .trim();
   const amount = parseInt(amountStr, 10);
 
   if (Number.isNaN(amount) || amount <= 0) {
@@ -156,7 +158,7 @@ async function handleBetModal(interaction: ModalSubmitInteraction) {
       .setLabel("Confirm")
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId("cancel_bet")
+      .setCustomId(staticIds.cancelBet)
       .setLabel("Cancel")
       .setStyle(ButtonStyle.Secondary),
   );

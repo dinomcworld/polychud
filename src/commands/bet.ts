@@ -1,4 +1,8 @@
-import { MessageFlags, SlashCommandBuilder } from "discord.js";
+import {
+  type ChatInputCommandInteraction,
+  MessageFlags,
+  SlashCommandBuilder,
+} from "discord.js";
 import { getUserActiveBets } from "../services/betting.js";
 import { ensureUser } from "../services/users.js";
 import { buildBetListView } from "../ui/betList.js";
@@ -22,9 +26,7 @@ export const betCommand: Command = {
   },
 };
 
-async function handleBetList(
-  interaction: import("discord.js").ChatInputCommandInteraction,
-) {
+async function handleBetList(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const guildId = await requireGuildId(interaction);

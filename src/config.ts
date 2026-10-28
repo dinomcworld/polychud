@@ -70,6 +70,9 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(86_400_000), // 24h
+  // Per-request timeout. Free reasoning models can take well over 15s to
+  // finish a non-streamed completion.
+  AI_SUMMARY_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000), // 60s
 });
 
 const result = envSchema.safeParse(process.env);

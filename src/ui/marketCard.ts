@@ -6,9 +6,20 @@ import {
   EmbedBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
-import { searchPage, searchResolvedToggle } from "../interactions/customIds.js";
+import {
+  betButton,
+  categoryPage,
+  chart,
+  marketRefresh,
+  newPage,
+  searchPage,
+  searchResolvedToggle,
+  staticIds,
+  trendingPage,
+} from "../interactions/customIds.js";
 import { checkTradeable, type GammaMarket } from "../services/polymarket.js";
 import { COLORS } from "./colors.js";
+import { buildPrevNext } from "./paginate.js";
 import { truncate } from "./text.js";
 
 export interface MarketCardData {
@@ -139,25 +150,24 @@ export function buildMarketButtons(
   if (isActive && tradeable) {
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId(`bet_yes_${conditionId}`)
+        .setCustomId(betButton.encode("yes", conditionId))
         .setLabel(truncate(`Bet ${yesLabel}`, 30))
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId(`bet_no_${conditionId}`)
+        .setCustomId(betButton.encode("no", conditionId))
         .setLabel(truncate(`Bet ${noLabel}`, 30))
         .setStyle(ButtonStyle.Danger),
     );
   }
 
   // Embed polyEventId in refresh/chart buttons so event context survives.
-  const evtSuffix = polyEventId ? `_evt${polyEventId}` : "";
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(`refresh_${conditionId}${evtSuffix}`)
+      .setCustomId(marketRefresh.encode(conditionId, polyEventId))
       .setLabel("Refresh")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId(`chart_${conditionId}${evtSuffix}`)
+      .setCustomId(chart.encode(conditionId, polyEventId))
       .setLabel("Chart")
       .setStyle(ButtonStyle.Primary),
   );
@@ -273,7 +283,7 @@ export function buildSearchSelectMenu(
   const items = pageItems.length > 0 ? pageItems : display;
 
   const menu = new StringSelectMenuBuilder()
-    .setCustomId("market_select")
+    .setCustomId(staticIds.marketSelect)
     .setPlaceholder("Select a market to view...")
     .addOptions(
       items.slice(0, 25).map((r) => {
@@ -339,19 +349,9 @@ export function buildTrendingControlsRow(
   totalPages: number,
 ): ActionRowBuilder<ButtonBuilder> | null {
   if (totalPages <= 1) return null;
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`trending_page_${page - 1}`)
-      .setLabel("◀ Prev")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(page <= 0),
-    new ButtonBuilder()
-      .setCustomId(`trending_page_${page + 1}`)
-      .setLabel("Next ▶")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(page >= totalPages - 1),
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    ...buildPrevNext(page, totalPages, trendingPage.encode),
   );
-  return row;
 }
 
 export function buildNewControlsRow(
@@ -360,16 +360,7 @@ export function buildNewControlsRow(
 ): ActionRowBuilder<ButtonBuilder> | null {
   if (totalPages <= 1) return null;
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`new_page_${page - 1}`)
-      .setLabel("◀ Prev")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(page <= 0),
-    new ButtonBuilder()
-      .setCustomId(`new_page_${page + 1}`)
-      .setLabel("Next ▶")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(page >= totalPages - 1),
+    ...buildPrevNext(page, totalPages, newPage.encode),
   );
 }
 
@@ -380,16 +371,7 @@ export function buildCategoryControlsRow(
 ): ActionRowBuilder<ButtonBuilder> | null {
   if (totalPages <= 1) return null;
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`cat_page_${page - 1}_${tagSlug}`)
-      .setLabel("◀ Prev")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(page <= 0),
-    new ButtonBuilder()
-      .setCustomId(`cat_page_${page + 1}_${tagSlug}`)
-      .setLabel("Next ▶")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(page >= totalPages - 1),
+    ...buildPrevNext(page, totalPages, (p) => categoryPage.encode(p, tagSlug)),
   );
 }
 
