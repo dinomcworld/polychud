@@ -49,3 +49,14 @@ bun run dev
 - Discord.js
 - PostgreSQL + Drizzle ORM
 - Polymarket Gamma & CLOB APIs
+
+## Testing
+
+```sh
+bun run test      # unit tests (src/**/*.test.ts)
+bun run test:e2e  # end-to-end: live Polymarket APIs + in-memory Postgres (PGlite)
+```
+
+The e2e suite drives the real command, button, select and modal handlers with
+fake Discord interactions. It needs network access to Polymarket but no
+database or Discord token.

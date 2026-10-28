@@ -28,7 +28,7 @@ export function stopResolver() {
   }
 }
 
-async function runResolutionCheck() {
+export async function runResolutionCheck() {
   if (running) {
     logger.debug("Resolution check already running, skipping");
     return;
