@@ -134,7 +134,7 @@ export function buildPortfolioView(
       },
       {
         name: "Win Rate",
-        value: `${stats.winRate}% (${stats.totalWon}/${stats.totalBetsSettled})`,
+        value: `${stats.winRate}% (${stats.winRatePositionsWon}/${stats.winRatePositionsSettled})`,
         inline: true,
       },
     )

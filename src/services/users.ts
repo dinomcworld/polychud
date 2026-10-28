@@ -156,6 +156,36 @@ export async function claimDaily(discordId: string, guildId: string) {
   };
 }
 
+/**
+ * Win-rate counts per user, where repeat bets on the same side of the same
+ * market (placed at different times) count as one position. A position is
+ * settled once any of its bets is won, lost or closed early, and won if any of
+ * its bets resolved as won. Cancelled bets don't count.
+ */
+export async function getWinRateCounts(guildId: string, userId?: number) {
+  const position = sql`(${bets.marketId}, ${bets.outcome})`;
+  const rows = await db
+    .select({
+      userId: bets.userId,
+      settled: sql<number>`COUNT(DISTINCT ${position}) FILTER (WHERE ${bets.status} IN ('won', 'lost', 'closed_early'))`,
+      won: sql<number>`COUNT(DISTINCT ${position}) FILTER (WHERE ${bets.status} = 'won')`,
+    })
+    .from(bets)
+    .where(
+      and(
+        eq(bets.guildId, guildId),
+        userId === undefined ? undefined : eq(bets.userId, userId),
+      ),
+    )
+    .groupBy(bets.userId);
+
+  const byUserId = new Map<number, { settled: number; won: number }>();
+  for (const r of rows) {
+    byUserId.set(r.userId, { settled: Number(r.settled), won: Number(r.won) });
+  }
+  return byUserId;
+}
+
 export async function getUserStats(discordId: string, guildId: string) {
   const { user, member } = await ensureUser(discordId, guildId);
 
@@ -169,9 +199,13 @@ export async function getUserStats(discordId: string, guildId: string) {
       ),
   });
 
+  const winCounts = (await getWinRateCounts(guildId, user.id)).get(user.id) ?? {
+    settled: 0,
+    won: 0,
+  };
   const winRate =
-    member.totalBetsSettled > 0
-      ? ((member.totalWon / member.totalBetsSettled) * 100).toFixed(1)
+    winCounts.settled > 0
+      ? ((winCounts.won / winCounts.settled) * 100).toFixed(1)
       : "0.0";
 
   // Realized net P&L from settled/closed/cancelled bets
@@ -217,6 +251,8 @@ export async function getUserStats(discordId: string, guildId: string) {
     totalWon: member.totalWon,
     totalLost: member.totalLost,
     winRate,
+    winRatePositionsWon: winCounts.won,
+    winRatePositionsSettled: winCounts.settled,
     activeBetsCount: activeBets.length,
     netPnL,
     unrealizedPnL,

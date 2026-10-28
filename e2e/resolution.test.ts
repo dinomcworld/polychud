@@ -5,7 +5,7 @@ import { bets, guildMembers, markets } from "../src/db/schema.js";
 import { runResolutionCheck } from "../src/jobs/resolver.js";
 import { upsertStandaloneMarket } from "../src/services/markets.js";
 import type { GammaMarket } from "../src/services/polymarket.js";
-import { ensureUser } from "../src/services/users.js";
+import { ensureUser, getUserStats } from "../src/services/users.js";
 import { db, resetDb } from "./db.js";
 import { GUILD_ID } from "./discord.js";
 import { findResolvedMarket } from "./polymarket.js";
@@ -108,5 +108,27 @@ describe("resolver", () => {
     expect(member?.pointsBalance).toBe(
       config.DEFAULT_STARTING_POINTS - STAKE + PAYOUT,
     );
+  });
+
+  test("win rate counts repeat bets on the same market once", async () => {
+    const marketId = await upsertStandaloneMarket(market);
+    const loser = market.winner === "yes" ? "no" : "yes";
+    await seedPendingBet("100", marketId, market.winner);
+    await seedPendingBet("100", marketId, market.winner);
+    await seedPendingBet("200", marketId, loser);
+    await seedPendingBet("200", marketId, loser);
+
+    await runResolutionCheck();
+
+    const winner = await getUserStats("100", GUILD_ID);
+    expect(winner.winRate).toBe("100.0");
+    expect(winner.winRatePositionsWon).toBe(1);
+    expect(winner.winRatePositionsSettled).toBe(1);
+    expect(winner.totalWon).toBe(2);
+
+    const other = await getUserStats("200", GUILD_ID);
+    expect(other.winRate).toBe("0.0");
+    expect(other.winRatePositionsWon).toBe(0);
+    expect(other.winRatePositionsSettled).toBe(1);
   });
 });
