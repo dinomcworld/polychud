@@ -17,8 +17,8 @@ process.env.DATABASE_URL = "postgres://pglite/in-memory";
 process.env.NODE_ENV = "test";
 process.env.LOG_LEVEL ??= "warn";
 // Keep the AI summary off: it would need a paid key and isn't under test.
-delete process.env.OPENROUTER_API_KEY;
-delete process.env.OPENROUTER_MODEL;
+delete process.env.AI_API_KEY;
+delete process.env.AI_MODEL;
 
 const schema = await import("../src/db/schema.js");
 

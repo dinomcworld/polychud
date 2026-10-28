@@ -50,11 +50,18 @@ const envSchema = z.object({
   // Logging
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
-  // AI summary (OpenRouter). Feature is gated on BOTH key and model being set.
-  // OPENROUTER_MODEL accepts a comma-separated list; later entries are tried as
-  // fallbacks when an earlier one is rate-limited.
-  OPENROUTER_API_KEY: z.string().optional(),
-  OPENROUTER_MODEL: z
+  // AI summary. Works with any OpenAI-compatible chat completions API
+  // (OpenRouter, OpenAI, Groq, Together, a local server, ...); AI_BASE_URL is
+  // the API root that `/chat/completions` is appended to. Feature is gated on
+  // BOTH key and model being set. AI_MODEL accepts a comma-separated list;
+  // later entries are tried as fallbacks when an earlier one is rate-limited,
+  // truncated, or times out.
+  AI_BASE_URL: z
+    .url()
+    .default("https://openrouter.ai/api/v1")
+    .transform((v) => v.replace(/\/+$/, "")),
+  AI_API_KEY: z.string().optional(),
+  AI_MODEL: z
     .string()
     .optional()
     .transform((v) =>

@@ -30,9 +30,7 @@ Rules:
 }
 
 function isEnabled(): boolean {
-  return Boolean(
-    config.OPENROUTER_API_KEY && config.OPENROUTER_MODEL.length > 0,
-  );
+  return Boolean(config.AI_API_KEY && config.AI_MODEL.length > 0);
 }
 
 export function getCachedMarketSummary(conditionId: string): string | null {
@@ -57,7 +55,7 @@ export async function getMarketSummary(
   const existing = inFlight.get(market.conditionId);
   if (existing) return existing;
 
-  const promise = fetchSummaryFromOpenRouter(market).finally(() => {
+  const promise = fetchSummary(market).finally(() => {
     inFlight.delete(market.conditionId);
   });
   inFlight.set(market.conditionId, promise);
@@ -72,11 +70,9 @@ export async function getMarketSummary(
   return summary;
 }
 
-async function fetchSummaryFromOpenRouter(
-  market: GammaMarket,
-): Promise<string | null> {
-  const apiKey = config.OPENROUTER_API_KEY;
-  const models = config.OPENROUTER_MODEL;
+async function fetchSummary(market: GammaMarket): Promise<string | null> {
+  const apiKey = config.AI_API_KEY;
+  const models = config.AI_MODEL;
   if (!apiKey || models.length === 0) return null;
 
   const yesLabel = market.outcomes[0] ?? "Yes";
@@ -99,7 +95,7 @@ async function fetchSummaryFromOpenRouter(
   }
 
   logger.warn(
-    `OpenRouter all ${models.length} model(s) exhausted (rate-limited, truncated, or timed out) for ${market.conditionId}`,
+    `AI summary all ${models.length} model(s) exhausted (rate-limited, truncated, or timed out) for ${market.conditionId}`,
   );
   return null;
 }
@@ -142,7 +138,7 @@ async function tryModelWithRetry(
       const delay =
         BASE_BACKOFF_MS * 2 ** (attempt - 1) + Math.random() * BASE_BACKOFF_MS;
       logger.debug(
-        `OpenRouter retry ${attempt}/${MAX_RETRIES} model=${model} for ${conditionId} after ${Math.round(delay)}ms (${result.kind})`,
+        `AI summary retry ${attempt}/${MAX_RETRIES} model=${model} for ${conditionId} after ${Math.round(delay)}ms (${result.kind})`,
       );
       await sleep(delay);
     }
@@ -173,37 +169,34 @@ async function tryModel(
   const startedAt = Date.now();
 
   try {
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model,
-          temperature: 0.2,
-          // Generous cap: some free models mandate reasoning and count those
-          // tokens toward max_tokens, so we need headroom for thinking +
-          // the ~300-token visible answer. Disabling reasoning is not an
-          // option — those endpoints 400 on `reasoning.enabled: false`.
-          max_tokens: 2500,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
-          ],
-        }),
+    const response = await fetch(`${config.AI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
       },
-    );
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        temperature: 0.2,
+        // Generous cap: some free models mandate reasoning and count those
+        // tokens toward max_tokens, so we need headroom for thinking +
+        // the ~300-token visible answer. Disabling reasoning is not an
+        // option — those endpoints 400 on `reasoning.enabled: false`.
+        max_tokens: 2500,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent },
+        ],
+      }),
+    });
 
     const durationMs = Date.now() - startedAt;
 
     if (!response.ok) {
       const body = await response.text().catch(() => "(unreadable)");
       logger.warn(
-        `OpenRouter ${response.status} (${durationMs}ms) model=${model} for ${conditionId}: ${body.slice(0, 200)}`,
+        `AI summary ${response.status} (${durationMs}ms) model=${model} for ${conditionId}: ${body.slice(0, 200)}`,
       );
       if (response.status === 429) return { kind: "rate_limited" };
       return { kind: "error" };
@@ -219,31 +212,31 @@ async function tryModel(
     const content = choice?.message?.content?.trim();
     if (!content) {
       logger.warn(
-        `OpenRouter empty content (${durationMs}ms) model=${model} for ${conditionId}`,
+        `AI summary empty content (${durationMs}ms) model=${model} for ${conditionId}`,
       );
       return { kind: "empty" };
     }
 
     if (choice?.finish_reason === "length") {
       logger.warn(
-        `OpenRouter truncated by max_tokens (${durationMs}ms) model=${model} for ${conditionId} (${content.length}b) — trying next model`,
+        `AI summary truncated by max_tokens (${durationMs}ms) model=${model} for ${conditionId} (${content.length}b) — trying next model`,
       );
       return { kind: "truncated" };
     }
 
     logger.debug(
-      `OpenRouter ok (${durationMs}ms) model=${model} for ${conditionId} (${content.length}b finish=${choice?.finish_reason ?? "?"})`,
+      `AI summary ok (${durationMs}ms) model=${model} for ${conditionId} (${content.length}b finish=${choice?.finish_reason ?? "?"})`,
     );
     return { kind: "ok", content };
   } catch (err) {
     if (controller.signal.aborted) {
       logger.warn(
-        `OpenRouter timed out after ${config.AI_SUMMARY_TIMEOUT_MS}ms model=${model} for ${conditionId} — trying next model`,
+        `AI summary timed out after ${config.AI_SUMMARY_TIMEOUT_MS}ms model=${model} for ${conditionId} — trying next model`,
       );
       return { kind: "timeout" };
     }
     logger.warn(
-      `OpenRouter call failed model=${model} for ${conditionId}: ${err instanceof Error ? err.message : String(err)}`,
+      `AI summary call failed model=${model} for ${conditionId}: ${err instanceof Error ? err.message : String(err)}`,
     );
     return { kind: "error" };
   } finally {
