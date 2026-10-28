@@ -95,11 +95,11 @@ async function fetchSummaryFromOpenRouter(
     if (result.kind === "ok") return result.content;
     if (result.kind === "empty") return null;
     if (result.kind === "error") return null;
-    // rate_limited | truncated: fall through to the next fallback model.
+    // rate_limited | truncated | timeout: fall through to the next fallback model.
   }
 
   logger.warn(
-    `OpenRouter all ${models.length} model(s) exhausted (rate-limited or truncated) for ${market.conditionId}`,
+    `OpenRouter all ${models.length} model(s) exhausted (rate-limited, truncated, or timed out) for ${market.conditionId}`,
   );
   return null;
 }
@@ -109,6 +109,7 @@ type ModelResult =
   | { kind: "empty" }
   | { kind: "rate_limited" }
   | { kind: "truncated" }
+  | { kind: "timeout" }
   | { kind: "error" };
 
 // Attempts beyond the first, per model, for transient failures.
@@ -119,9 +120,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// rate_limited (429) and error (HTTP non-2xx, network, or timeout) are
-// transient and worth retrying. empty/truncated are deterministic for a
-// given prompt, so retrying them just burns quota.
+// rate_limited (429) and error (HTTP non-2xx or network) are transient and
+// worth retrying. empty/truncated are deterministic for a given prompt, so
+// retrying them just burns quota. timeout means the model is too slow right
+// now; retrying it would stack another full timeout, so move to the next model.
 function isRetryable(result: ModelResult): boolean {
   return result.kind === "rate_limited" || result.kind === "error";
 }
@@ -164,7 +166,10 @@ async function tryModel(
   conditionId: string,
 ): Promise<ModelResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    config.AI_SUMMARY_TIMEOUT_MS,
+  );
   const startedAt = Date.now();
 
   try {
@@ -231,6 +236,12 @@ async function tryModel(
     );
     return { kind: "ok", content };
   } catch (err) {
+    if (controller.signal.aborted) {
+      logger.warn(
+        `OpenRouter timed out after ${config.AI_SUMMARY_TIMEOUT_MS}ms model=${model} for ${conditionId} — trying next model`,
+      );
+      return { kind: "timeout" };
+    }
     logger.warn(
       `OpenRouter call failed model=${model} for ${conditionId}: ${err instanceof Error ? err.message : String(err)}`,
     );
