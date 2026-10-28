@@ -21,3 +21,4 @@ jobs:
           SKIP_INSTALL_SIMPLE_GIT_HOOKS: 1
       - run: bun run lint
       - run: bun run typecheck
+      - run: bun run test

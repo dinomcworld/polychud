@@ -6,7 +6,7 @@ import {
   EmbedBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
-import { betsPage, betsToggle } from "../interactions/customIds.js";
+import { betsPage, betsToggle, staticIds } from "../interactions/customIds.js";
 import type {
   getUserActiveBets,
   getUserSettledBets,
@@ -68,7 +68,7 @@ export function buildBetListView(
 
   if (mode === "active" && pageBets.length > 0) {
     const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId("bets_close_select")
+      .setCustomId(staticIds.betsCloseSelect)
       .setPlaceholder("Select a bet to close early...")
       .addOptions(
         (pageBets as ActiveBet[]).map((bet) => {
