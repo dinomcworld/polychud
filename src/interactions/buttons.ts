@@ -8,11 +8,15 @@ import {
   LabelBuilder,
   MessageFlags,
   ModalBuilder,
+  type StringSelectMenuInteraction,
   TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
-import { buildLeaderboardView } from "../commands/leaderboard.js";
+import {
+  buildLeaderboardView,
+  type LeaderboardSort,
+} from "../commands/leaderboard.js";
 import {
   renderCategoryView,
   renderNewView,
@@ -167,11 +171,8 @@ export async function handleButton(interaction: ButtonInteraction) {
 
 async function handleBetButton(interaction: ButtonInteraction) {
   // bet_yes_{conditionId} or bet_no_{conditionId}
-  const [, outcome, conditionId] = interaction.customId.split("_") as [
-    string,
-    "yes" | "no",
-    string,
-  ];
+  const [, outcome, conditionId] = interaction.customId.split("_");
+  if ((outcome !== "yes" && outcome !== "no") || !conditionId) return;
 
   rememberMarketMessage(
     interaction.user.id,
@@ -825,7 +826,7 @@ async function handleLeaderboardRefresh(interaction: ButtonInteraction) {
   if (!guildId) return;
   const view = await buildLeaderboardView(
     guildId,
-    decoded.sort as import("../commands/leaderboard.js").LeaderboardSort,
+    decoded.sort as LeaderboardSort,
     decoded.all,
     decoded.page,
   );
@@ -840,7 +841,7 @@ async function handleLeaderboardPage(interaction: ButtonInteraction) {
   if (!guildId) return;
   const view = await buildLeaderboardView(
     guildId,
-    decoded.sort as import("../commands/leaderboard.js").LeaderboardSort,
+    decoded.sort as LeaderboardSort,
     decoded.all,
     decoded.page,
   );
@@ -859,13 +860,12 @@ async function handleCloseBet(interaction: ButtonInteraction) {
   const betIdStr = interaction.customId.split("_")[2];
   if (!betIdStr) return;
   const betId = parseInt(betIdStr, 10);
+  if (Number.isNaN(betId)) return;
   await showCloseBetPreview(interaction, betId);
 }
 
 export async function showCloseBetPreview(
-  interaction:
-    | ButtonInteraction
-    | import("discord.js").StringSelectMenuInteraction,
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
   betId: number,
 ) {
   // Preview is ephemeral (only the bettor sees the confirm/cancel prompt).

@@ -324,10 +324,12 @@ function niceTicks(min: number, max: number, target: number): number[] {
   // so the grid spans the full chart. The threshold is ~25% of one step;
   // closer than that, the duplicate label would just visually crowd the edge.
   const stepFrac = step / 100;
-  if (ticks.length === 0 || ticks[0]! - min > stepFrac * 0.25) {
+  const first = ticks[0];
+  if (first === undefined || first - min > stepFrac * 0.25) {
     ticks.unshift(min);
   }
-  if (ticks.length === 0 || max - ticks[ticks.length - 1]! > stepFrac * 0.25) {
+  const last = ticks[ticks.length - 1];
+  if (last === undefined || max - last > stepFrac * 0.25) {
     ticks.push(max);
   }
   return ticks;
