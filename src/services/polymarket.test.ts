@@ -22,6 +22,8 @@ import {
   getTokenQuote,
   getTrendingMarkets,
   invalidatePriceCache,
+  isShortWindow,
+  SHORT_WINDOW_REASON,
   searchMarkets,
 } from "./polymarket.js";
 
@@ -643,6 +645,85 @@ describe("fetchWithRetry", () => {
     mockApi(() => new Response("boom", { status: 500 }));
 
     await expect(searchMarkets("anything")).rejects.toThrow("API error 500");
+  });
+});
+
+// ─── Short-window markets ────────────────────────────────────────────────────
+
+const UPDOWN_5M_SLUG = "btc-updown-5m-1794237900";
+const UPDOWN_5M_CONDITION_ID =
+  "0x91567b4824cd394897e6b03c445223adce607113d69b8dfe2d28cba73dc36c80";
+const UPDOWN_DAILY_SLUG = "bitcoin-up-or-down-on-november-9-2026";
+
+describe("short-window markets", () => {
+  test("reads the series cadence off the event", async () => {
+    mockApi(() => fixture("event-updown-5m"));
+    expect((await getEventBySlug(UPDOWN_5M_SLUG))?.recurrence).toBe("5m");
+
+    mockApi(() => fixture("event-by-slug"));
+    expect((await getEventBySlug(FED_SLUG))?.recurrence).toBe("monthly");
+  });
+
+  test.each([
+    ["5m", true],
+    ["15m", true],
+    ["hourly", true],
+    ["4h", true],
+    ["daily", false],
+    ["weekly", false],
+    ["monthly", false],
+    [null, false],
+  ])("classifies a %p series as short-window: %p", (recurrence, expected) => {
+    expect(isShortWindow({ recurrence })).toBe(expected);
+  });
+
+  test("are dropped from search, trending and category listings", async () => {
+    const raw = [
+      ...fixture<Raw[]>("event-updown-5m"),
+      ...fixture<Raw[]>("event-updown-daily"),
+    ];
+    const slugs = (events: { slug: string }[]) => events.map((e) => e.slug);
+
+    mockApi(() => ({ events: raw }));
+    expect(slugs(await searchMarkets("bitcoin up or down"))).toEqual([
+      UPDOWN_DAILY_SLUG,
+    ]);
+
+    mockApi(() => raw);
+    expect(slugs(await getTrendingMarkets(2))).toEqual([UPDOWN_DAILY_SLUG]);
+
+    mockApi(() => raw);
+    expect(slugs(await getEventsByTag("crypto", 2))).toEqual([
+      UPDOWN_DAILY_SLUG,
+    ]);
+  });
+
+  test("cannot be bet on, however deep and tight the book", async () => {
+    mockApi(() => fixture("event-updown-5m"));
+    const market = at((await getEventBySlug(UPDOWN_5M_SLUG))?.markets ?? [], 0);
+    expect(market.liquidity).toBeGreaterThan(10_000);
+    expect(market.spread).toBe(0.01);
+
+    expect(checkTradeable(market)).toEqual({
+      tradeable: false,
+      reason: SHORT_WINDOW_REASON,
+    });
+  });
+
+  test("are recognised from the parent event nested in /markets", async () => {
+    mockApi(() => fixture("market-updown-5m-by-condition-id"));
+    const market = await getMarketByConditionId(UPDOWN_5M_CONDITION_ID);
+    if (!market) throw new Error("expected a market");
+
+    expect(checkTradeable(market).reason).toBe(SHORT_WINDOW_REASON);
+  });
+
+  test("leave daily up/down markets tradeable", async () => {
+    mockApi(() => fixture("event-updown-daily"));
+    const event = await getEventBySlug(UPDOWN_DAILY_SLUG);
+    expect(event?.recurrence).toBe("daily");
+
+    expect(checkTradeable(at(event?.markets ?? [], 0)).tradeable).toBe(true);
   });
 });
 
