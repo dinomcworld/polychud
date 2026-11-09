@@ -32,6 +32,8 @@ export interface GammaMarket {
   groupItemTitle?: string;
   // Populated when fetched via /markets?id= endpoint
   events?: GammaEvent[];
+  /** The parent event's series cadence; see `GammaEvent.recurrence`. */
+  recurrence: string | null;
 }
 
 export interface GammaEvent {
@@ -49,6 +51,8 @@ export interface GammaEvent {
   commentCount: number;
   volume: number;
   volume24hr: number;
+  /** Cadence of the Gamma series this event belongs to ("5m", "hourly", "daily", …); null for one-offs. */
+  recurrence: string | null;
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: raw external API shape; parsed at boundaries below
@@ -211,11 +215,18 @@ function parseMarket(raw: RawApiObject): GammaMarket {
     negRiskMarketID: raw.negRiskMarketID ?? raw.questionID ?? "",
     groupItemTitle: raw.groupItemTitle ?? undefined,
     events: raw.events?.map(parseEvent),
+    recurrence: raw.events?.[0]?.series?.[0]?.recurrence ?? null,
   };
 }
 
 function parseEvent(raw: RawApiObject): GammaEvent {
-  const allMarkets: GammaMarket[] = (raw.markets ?? []).map(parseMarket);
+  const recurrence: string | null = raw.series?.[0]?.recurrence ?? null;
+  const allMarkets: GammaMarket[] = (raw.markets ?? [])
+    .map(parseMarket)
+    .map((m: GammaMarket) => ({
+      ...m,
+      recurrence: m.recurrence ?? recurrence,
+    }));
   // Drop untraded placeholder sub-markets (neg-risk events pre-create slots
   // like "Person A" at 50% with zero volume). Keep closed/resolved markets so
   // history still renders; fall back to the full list if everything is empty.
@@ -240,6 +251,7 @@ function parseEvent(raw: RawApiObject): GammaEvent {
         ? parseFloat(raw.volume)
         : (raw.volume ?? 0),
     volume24hr: raw.volume24hr ?? 0,
+    recurrence,
   };
 }
 
@@ -276,6 +288,7 @@ export async function searchMarkets(query: string): Promise<GammaEvent[]> {
 
   for (const rawEvent of rawEvents) {
     const parsed = parseEvent(rawEvent);
+    if (isShortWindow(parsed)) continue;
     eventCache.set(`event:${parsed.id}`, parsed, MARKET_CACHE_TTL);
     for (const m of parsed.markets) {
       if (!m.conditionId) continue;
@@ -297,7 +310,7 @@ export async function getTrendingMarkets(
   const url = `${config.POLYMARKET_GAMMA_URL}/events?active=true&closed=false&order=volume24hr&ascending=false&limit=${limit}`;
   const response = await fetchWithRetry(url);
   const raw = (await response.json()) as RawApiObject[];
-  const results = raw.map(parseEvent);
+  const results = raw.map(parseEvent).filter((e) => !isShortWindow(e));
 
   for (const event of results) {
     eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
@@ -339,7 +352,7 @@ export async function getNewEvents(
   const url = `${config.POLYMARKET_GAMMA_URL}/events?${params}`;
   const response = await fetchWithRetry(url);
   const raw = (await response.json()) as RawApiObject[];
-  const results = raw.map(parseEvent);
+  const results = raw.map(parseEvent).filter((e) => !isShortWindow(e));
 
   for (const event of results) {
     eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
@@ -367,7 +380,7 @@ export async function getEventsByTag(
   const url = `${config.POLYMARKET_GAMMA_URL}/events?${params}`;
   const response = await fetchWithRetry(url);
   const raw = (await response.json()) as RawApiObject[];
-  const results = raw.map(parseEvent);
+  const results = raw.map(parseEvent).filter((e) => !isShortWindow(e));
 
   for (const event of results) {
     eventCache.set(`event:${event.id}`, event, MARKET_CACHE_TTL);
@@ -628,6 +641,21 @@ export function invalidatePriceCache(tokenId: string) {
   quoteCache.delete(`quote:${tokenId}`);
 }
 
+// ─── Short-window markets ─────────────────────────────────────────────────────
+
+/**
+ * Recurring series that resolve within hours ("5m", "15m", "hourly", "4h").
+ * The outcome is all but settled well before close, so a bettor watching the
+ * live price can pick winners. Daily and longer cadences are allowed.
+ */
+export function isShortWindow(item: { recurrence: string | null }) {
+  const r = item.recurrence?.toLowerCase();
+  return r === "hourly" || /^\d+\s*(m|min|h)$/.test(r ?? "");
+}
+
+export const SHORT_WINDOW_REASON =
+  "Short-window markets (resolving within hours) can't be bet on.";
+
 // ─── Book quality ─────────────────────────────────────────────────────────────
 
 export interface TradeabilityCheck {
@@ -644,6 +672,9 @@ export interface TradeabilityCheck {
 export function checkTradeable(gamma: GammaMarket): TradeabilityCheck {
   if (gamma.closed || !gamma.active) {
     return { tradeable: false, reason: "This market is no longer active." };
+  }
+  if (isShortWindow(gamma)) {
+    return { tradeable: false, reason: SHORT_WINDOW_REASON };
   }
   if (gamma.liquidity < config.MIN_MARKET_LIQUIDITY) {
     return {

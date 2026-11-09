@@ -21,6 +21,14 @@ names, string-encoded numbers and JSON-in-string arrays are exactly what
 | `clob-midpoint.json`                 | `GET /midpoint?token_id=97186…`                                                                                                  |
 | `clob-prices-history.json`           | `GET /prices-history?market=97186…&interval=1w` (first 50 points)                                                                |
 
+Captured on 2026-11-09 for the short-window gate:
+
+| File                                    | Endpoint                                                                   |
+| --------------------------------------- | -------------------------------------------------------------------------- |
+| `event-updown-5m.json`                  | `GET /events?slug=btc-updown-5m-1794237900` — a live 5-minute series event |
+| `market-updown-5m-by-condition-id.json` | `GET /markets?condition_ids=0x9156…` — the same market via `/markets`      |
+| `event-updown-daily.json`               | `GET /events?slug=bitcoin-up-or-down-on-november-9-2026` — a daily series  |
+
 Two fixtures are derived rather than captured, each a real payload with a single
 field edited to reproduce a condition not present in the live snapshot:
 

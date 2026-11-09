@@ -39,6 +39,8 @@ import {
   getCachedMarket,
   getEventById,
   getMarketByConditionId,
+  isShortWindow,
+  SHORT_WINDOW_REASON,
   searchMarkets,
 } from "../services/polymarket.js";
 import {
@@ -640,6 +642,15 @@ async function handleConfirm(interaction: ButtonInteraction) {
   if (!gamma) {
     await interaction.editReply({
       content: "Market not found. Try searching again.",
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  if (isShortWindow(gamma)) {
+    await interaction.editReply({
+      content: SHORT_WINDOW_REASON,
       embeds: [],
       components: [],
     });
